@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/cli": "^8.1.0",
+    "@capacitor/core": "^8.1.0",
     "@paypal/react-paypal-js": "^8.9.2",
     "@tailwindcss/postcss": "^4.1.18",
     "axios": "^1.6.0",
