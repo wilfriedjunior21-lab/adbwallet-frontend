@@ -176,7 +176,7 @@ const Wallet = () => {
       await api.post("/api/transactions/withdraw", {
         userId,
         amount: Number(amount),
-        phone: phone,
+        recipientPhone: phone,
       });
       toast.dismiss(loadingToast);
       toast.success("Demande envoyée !");
