@@ -13,7 +13,7 @@ import {
   FiArrowUpRight,
   FiTrash2,
   FiPhone,
-  FiBarChart2, // Nouvelle icône pour les stats
+  FiBarChart2,
 } from "react-icons/fi";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -146,17 +146,31 @@ const AdminPanel = () => {
     <div className="p-6 mx-auto text-white max-w-7xl">
       <Toaster />
 
-      <div className="flex items-center justify-between mb-10">
-        <h1 className="text-4xl italic font-black uppercase">
-          Panel <span className="text-blue-500">Administration</span>
-        </h1>
-        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+      {/* --- HEADER AVEC LOGO --- */}
+      <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-4">
+        <div className="flex items-center gap-4">
+          <img
+            src="/logo.png"
+            alt="Académie de la Bourse"
+            className="w-16 h-16 rounded-full border-2 border-blue-500 shadow-lg shadow-blue-500/20 object-cover"
+          />
+          <div>
+            <h1 className="text-3xl italic font-black uppercase leading-none">
+              Adb <span className="text-blue-500">Wallet</span>
+            </h1>
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.3em] mt-1">
+              Administration
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-900/50 px-4 py-2 rounded-full border border-slate-800">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           Live Auto-Sync (5s)
         </div>
       </div>
 
-      {/* --- NOUVELLE SECTION STATISTIQUES --- */}
+      {/* --- SECTION STATISTIQUES --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
           <div className="p-4 bg-blue-500/10 rounded-2xl text-blue-500">
@@ -198,7 +212,6 @@ const AdminPanel = () => {
           </div>
         </div>
       </div>
-      {/* --- FIN NOUVELLE SECTION STATISTIQUES --- */}
 
       {/* TABS NAVIGATION */}
       <div className="flex flex-wrap gap-4 mb-8">
