@@ -12,7 +12,8 @@ import {
   FiSend,
   FiArrowUpRight,
   FiTrash2,
-  FiPhone, // Ajouté pour l'icône du numéro
+  FiPhone,
+  FiBarChart2, // Nouvelle icône pour les stats
 } from "react-icons/fi";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -26,7 +27,6 @@ const AdminPanel = () => {
   const [amountPerShare, setAmountPerShare] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Utilisation de useCallback pour stabiliser la fonction et pouvoir l'appeler dans l'intervalle
   const fetchData = useCallback(async (isAutoRefresh = false) => {
     try {
       const [uRes, aRes, tRes] = await Promise.all([
@@ -37,10 +37,6 @@ const AdminPanel = () => {
       setUsers(uRes.data);
       setActions(aRes.data);
       setTransactions(tRes.data);
-
-      if (!isAutoRefresh) {
-        // toast.success("Données synchronisées"); // Optionnel
-      }
     } catch (err) {
       console.error("Erreur de rafraîchissement auto:", err);
       if (!isAutoRefresh) {
@@ -49,7 +45,6 @@ const AdminPanel = () => {
     }
   }, []);
 
-  // Gestion du cycle de vie et de l'intervalle de 5 secondes
   useEffect(() => {
     fetchData();
     const intervalId = setInterval(() => {
@@ -160,6 +155,50 @@ const AdminPanel = () => {
           Live Auto-Sync (5s)
         </div>
       </div>
+
+      {/* --- NOUVELLE SECTION STATISTIQUES --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
+          <div className="p-4 bg-blue-500/10 rounded-2xl text-blue-500">
+            <FiUsers size={28} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Total Utilisateurs
+            </p>
+            <p className="text-3xl font-black italic">{users.length}</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
+          <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500">
+            <FiCheck size={28} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              KYC Validés
+            </p>
+            <p className="text-3xl font-black italic">
+              {users.filter((u) => u.kycStatus === "valide").length}
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
+          <div className="p-4 bg-purple-500/10 rounded-2xl text-purple-500">
+            <FiBarChart2 size={28} />
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+              Actifs en vente
+            </p>
+            <p className="text-3xl font-black italic">
+              {actions.filter((a) => a.status === "valide").length}
+            </p>
+          </div>
+        </div>
+      </div>
+      {/* --- FIN NOUVELLE SECTION STATISTIQUES --- */}
 
       {/* TABS NAVIGATION */}
       <div className="flex flex-wrap gap-4 mb-8">
@@ -415,7 +454,7 @@ const AdminPanel = () => {
         </div>
       )}
 
-      {/* SECTION RETRAITS (MISE À JOUR AVEC NUMÉRO) */}
+      {/* SECTION RETRAITS */}
       {tab === "withdrawals" && (
         <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
           <table className="w-full text-left">
@@ -445,7 +484,6 @@ const AdminPanel = () => {
                     <td className="p-6 font-black text-red-500">
                       -{t.amount.toLocaleString()} F
                     </td>
-                    {/* --- NOUVELLE COLONNE AFFICHANT LE NUMÉRO --- */}
                     <td className="p-6">
                       <div className="flex items-center gap-2 px-3 py-2 border bg-black/40 border-slate-800 rounded-xl w-fit">
                         <FiPhone className="text-blue-500" size={14} />
