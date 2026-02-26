@@ -110,32 +110,48 @@ const DashboardAcheteur = () => {
   // --- LOGIQUE DE DÉPÔT PAYMOONEY ---
   const handleDepositSubmit = async () => {
     const amount = parseFloat(depositAmount);
+
+    // Validation locale
     if (!amount || amount < 100) {
       return toast.error("Le montant minimum est de 100 FCFA");
     }
 
+    // Récupérer les infos utilisateur depuis le localStorage
+    const userEmail = localStorage.getItem("email") || "client@email.com";
+    const userName = localStorage.getItem("name") || "Utilisateur";
+
     setIsRedirecting(true);
+
     try {
-      // 1. Appeler ton backend pour créer la transaction en attente
-      const res = await api.post("/api/transactions/paymooney/init", {
+      // 1. Appel au backend avec TOUTES les infos
+      const res = await api.post("/api/payments/paymooney/init", {
         userId,
         amount: amount,
+        email: userEmail, // CRUCIAL pour éviter la 400
+        name: userName,
       });
 
-      const { referenceId } = res.data;
+      // 2. Récupération de l'URL de paiement générée par le backend
+      const { payment_url } = res.data;
 
-      // 2. Rediriger vers PayMooney avec l'item_reference généré par ton backend
-      // Remplace TON_ID_MERCHANT par ton véritable ID marchand PayMooney
-      const publickey = "PK_d5M4k6BYZ1qaHegEJ8x7";
-      const payMooneyUrl = `https://www.paymooney.com/pay?merchant_id=${publickey}&item_reference=${referenceId}&amount=${amount}&currency=XAF`;
-
-      window.location.href = payMooneyUrl;
+      if (payment_url) {
+        toast.success("Redirection vers la plateforme de paiement...");
+        // Redirection immédiate
+        window.location.href = payment_url;
+      } else {
+        throw new Error("L'URL de paiement n'a pas été générée.");
+      }
     } catch (err) {
-      toast.error("Erreur lors de l'initialisation du paiement");
+      console.error("Erreur détaillée:", err.response?.data);
+
+      // Affichage du message d'erreur précis renvoyé par le backend
+      const errorMsg =
+        err.response?.data?.error || "Erreur lors de l'initialisation";
+      toast.error(errorMsg);
+
       setIsRedirecting(false);
     }
   };
-
   // --- LOGIQUE DU SUPPORT RÉELLE ---
   const handleSendMessage = async (actionId, receiverId) => {
     if (!newMessage.trim()) return;
