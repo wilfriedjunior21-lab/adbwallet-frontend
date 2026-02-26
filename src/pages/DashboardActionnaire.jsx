@@ -138,7 +138,7 @@ const DashboardActionnaire = () => {
       await api.post("/api/transactions/withdraw", {
         userId,
         amount,
-        phoneNumber: withdrawPhone, // Ce champ sera reçu par l'admin
+        recipientPhone: withdrawPhone, // Ce champ sera reçu par l'admin
       });
       toast.success("Demande de retrait envoyée !");
       setWithdrawAmount("");
