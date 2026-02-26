@@ -501,7 +501,7 @@ const AdminPanel = () => {
                       <div className="flex items-center gap-2 px-3 py-2 border bg-black/40 border-slate-800 rounded-xl w-fit">
                         <FiPhone className="text-blue-500" size={14} />
                         <span className="text-xs font-black tracking-wider text-white">
-                          {t.phoneNumber || "N/A"}
+                          {t.recipientPhone || "N/A"}
                         </span>
                       </div>
                     </td>
