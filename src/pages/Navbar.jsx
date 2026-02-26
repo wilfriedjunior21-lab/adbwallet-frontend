@@ -23,12 +23,16 @@ const Navbar = () => {
   return (
     <nav className="bg-slate-950 border-b border-slate-900 p-4 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
-        {/* LOGO */}
-        <Link
-          to="/"
-          className="text-xl font-black italic uppercase tracking-tighter"
-        >
-          ADB<span className="text-blue-500">Wallet</span>
+        {/* LOGO AVEC IMAGE AJOUTÉE */}
+        <Link to="/" className="flex items-center gap-3 group">
+          <img
+            src="/logo.png"
+            alt="Logo"
+            className="w-10 h-10 rounded-full border border-blue-500/30 group-hover:border-blue-500 transition-all object-cover"
+          />
+          <span className="text-xl font-black italic uppercase tracking-tighter text-white">
+            ADB<span className="text-blue-500">Wallet</span>
+          </span>
         </Link>
 
         {/* LIENS */}

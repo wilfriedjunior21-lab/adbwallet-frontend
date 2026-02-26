@@ -15,13 +15,20 @@ const NavbarActionnaire = () => {
   return (
     <nav className="bg-slate-950 border-b border-slate-900 p-4 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
-        {/* LOGO BUSINESS */}
+        {/* LOGO BUSINESS AVEC IMAGE */}
         <div className="flex items-center gap-4">
           <Link
             to="/dashboard-actionnaire"
-            className="text-xl font-black italic uppercase tracking-tighter text-white"
+            className="flex items-center gap-3 group"
           >
-            ADB<span className="text-blue-500">Business</span>
+            <img
+              src="/logo.png"
+              alt="Logo"
+              className="w-10 h-10 rounded-full border border-blue-500/30 group-hover:border-blue-500 transition-all object-cover"
+            />
+            <span className="text-xl font-black italic uppercase tracking-tighter text-white">
+              ADB<span className="text-blue-500">Business</span>
+            </span>
           </Link>
           <div className="h-4 w-[1px] bg-slate-800 hidden md:block"></div>
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest hidden md:block">
