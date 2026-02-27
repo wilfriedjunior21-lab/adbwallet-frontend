@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
+import ThemeToggle from "./ThemeToggle"; // Assure-toi que le fichier ThemeToggle.jsx est dans le même dossier
 // Changement de FiWallet par FiCreditCard pour éviter l'erreur
 import {
   FiCreditCard,
@@ -21,7 +22,7 @@ const Navbar = () => {
   if (!userId) return null; // Ne pas afficher la navbar si pas connecté
 
   return (
-    <nav className="bg-slate-950 border-b border-slate-900 p-4 sticky top-0 z-50">
+    <nav className="bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-900 p-4 sticky top-0 z-50 transition-colors duration-300">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
         {/* LOGO AVEC IMAGE AJOUTÉE */}
         <Link to="/" className="flex items-center gap-3 group">
@@ -30,12 +31,12 @@ const Navbar = () => {
             alt="Logo"
             className="w-10 h-10 rounded-full border border-blue-500/30 group-hover:border-blue-500 transition-all object-cover"
           />
-          <span className="text-xl font-black italic uppercase tracking-tighter text-white">
+          <span className="text-xl font-black italic uppercase tracking-tighter text-slate-900 dark:text-white">
             ADB<span className="text-blue-500">Wallet</span>
           </span>
         </Link>
 
-        {/* LIENS */}
+        {/* LIENS ET ACTIONS */}
         <div className="flex gap-4 items-center">
           {/* Dashboard selon le rôle */}
           {role === "acheteur" && (
@@ -45,7 +46,7 @@ const Navbar = () => {
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                   location.pathname === "/dashboard-acheteur"
                     ? "bg-blue-600 text-white"
-                    : "text-slate-500 hover:text-white"
+                    : "text-slate-500 hover:text-blue-600 dark:hover:text-white"
                 }`}
               >
                 <FiTrendingUp /> Marché
@@ -56,7 +57,7 @@ const Navbar = () => {
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                   location.pathname === "/wallet"
                     ? "bg-blue-600 text-white"
-                    : "text-slate-500 hover:text-white"
+                    : "text-slate-500 hover:text-blue-600 dark:hover:text-white"
                 }`}
               >
                 <FiCreditCard /> Portefeuille
@@ -76,6 +77,12 @@ const Navbar = () => {
               <FiSettings /> Admin
             </Link>
           )}
+
+          {/* ESPACE SÉPARATEUR DISCRET */}
+          <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800 mx-1" />
+
+          {/* AJOUT DU BOUTON DE THÈME */}
+          <ThemeToggle />
 
           {/* BOUTON DÉCONNEXION */}
           <button
