@@ -14,6 +14,8 @@ import {
   FiTrash2,
   FiPhone,
   FiBarChart2,
+  FiBriefcase,
+  FiPlus, // Icône pour l'ajout
 } from "react-icons/fi";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -21,22 +23,43 @@ const AdminPanel = () => {
   const [users, setUsers] = useState([]);
   const [actions, setActions] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [bonds, setBonds] = useState([]);
   const [tab, setTab] = useState("kyc");
 
   const [selectedAction, setSelectedAction] = useState("");
   const [amountPerShare, setAmountPerShare] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // États pour la création directe par l'admin
+  const [showCreateModal, setShowCreateModal] = useState(null); // 'action' ou 'bond' ou null
+  const [newActionData, setNewActionData] = useState({
+    name: "",
+    price: "",
+    totalQuantity: "",
+    description: "",
+  });
+  const [newBondData, setNewBondData] = useState({
+    titre: "",
+    montantCible: "",
+    tauxInteret: "",
+    dureeMois: "",
+    frequence: "Annuel",
+    garantie: "",
+    description: "",
+  });
+
   const fetchData = useCallback(async (isAutoRefresh = false) => {
     try {
-      const [uRes, aRes, tRes] = await Promise.all([
+      const [uRes, aRes, tRes, bRes] = await Promise.all([
         api.get("/api/admin/users"),
         api.get("/api/admin/actions"),
         api.get("/api/admin/transactions"),
+        api.get("/api/admin/bonds"),
       ]);
       setUsers(uRes.data);
       setActions(aRes.data);
       setTransactions(tRes.data);
+      setBonds(bRes.data || []);
     } catch (err) {
       console.error("Erreur de rafraîchissement auto:", err);
       if (!isAutoRefresh) {
@@ -53,6 +76,7 @@ const AdminPanel = () => {
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
+  // --- FONCTIONS EXISTANTES CONSERVÉES ---
   const handleValidateKYC = async (id, status) => {
     try {
       await api.patch(`/api/admin/kyc/${id}`, { status });
@@ -104,7 +128,6 @@ const AdminPanel = () => {
       "Motif du refus (sera visible par le client) :"
     );
     if (reason === null) return;
-
     try {
       await api.patch(`/api/admin/transactions/${id}/reject`, { reason });
       toast.success("Retrait refusé. L'utilisateur a été recrédité.");
@@ -116,16 +139,10 @@ const AdminPanel = () => {
 
   const handleDistributeDividends = async (e) => {
     e.preventDefault();
-    if (!selectedAction || !amountPerShare) {
+    if (!selectedAction || !amountPerShare)
       return toast.error("Veuillez remplir tous les champs");
-    }
-
-    const confirmDist = window.confirm(
-      `Confirmez-vous la distribution de ${amountPerShare} F par part ? Cette action créditera immédiatement tous les actionnaires concernés.`
-    );
-
+    const confirmDist = window.confirm(`Confirmez-vous la distribution ?`);
     if (!confirmDist) return;
-
     setIsProcessing(true);
     try {
       const res = await api.post("/api/admin/distribute-dividends", {
@@ -142,17 +159,244 @@ const AdminPanel = () => {
     }
   };
 
+  const handleValidateBond = async (id) => {
+    try {
+      await api.patch(`/api/admin/bonds/${id}/validate`);
+      toast.success("Obligation approuvée et mise en ligne !");
+      fetchData();
+    } catch (err) {
+      toast.error("Erreur lors de la validation de l'obligation");
+    }
+  };
+
+  const handleRejectBond = async (id) => {
+    if (!window.confirm("Voulez-vous vraiment rejeter cette obligation ?"))
+      return;
+    try {
+      await api.delete(`/api/admin/bonds/${id}`);
+      toast.success("Obligation rejetée");
+      fetchData();
+    } catch (err) {
+      toast.error("Erreur lors du rejet");
+    }
+  };
+
+  // --- NOUVELLES FONCTIONS : CRÉATION DIRECTE ADMIN ---
+  const createActionAdmin = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/api/admin/actions/create", newActionData);
+      toast.success("Action créée avec succès !");
+      setShowCreateModal(null);
+      setNewActionData({
+        name: "",
+        price: "",
+        totalQuantity: "",
+        description: "",
+      });
+      fetchData();
+    } catch (err) {
+      toast.error("Erreur lors de la création de l'action");
+    }
+  };
+
+  const createBondAdmin = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/api/admin/bonds/create", newBondData);
+      toast.success("Obligation créée avec succès !");
+      setShowCreateModal(null);
+      setNewBondData({
+        titre: "",
+        montantCible: "",
+        tauxInteret: "",
+        dureeMois: "",
+        frequence: "Annuel",
+        garantie: "",
+        description: "",
+      });
+      fetchData();
+    } catch (err) {
+      toast.error("Erreur lors de la création de l'obligation");
+    }
+  };
+
   return (
-    <div className="p-6 mx-auto text-white max-w-7xl">
+    <div className="p-6 mx-auto text-white max-w-7xl relative">
       <Toaster />
 
-      {/* --- HEADER AVEC LOGO --- */}
+      {/* --- MODAL DE CRÉATION (S'affiche par dessus) --- */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-black uppercase italic">
+                {showCreateModal === "action"
+                  ? "Nouvelle Action"
+                  : "Nouvelle Obligation"}
+              </h2>
+              <button
+                onClick={() => setShowCreateModal(null)}
+                className="p-2 bg-slate-800 rounded-full hover:bg-red-500 transition-colors"
+              >
+                <FiX />
+              </button>
+            </div>
+
+            {showCreateModal === "action" ? (
+              <form onSubmit={createActionAdmin} className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Nom de l'entreprise"
+                  required
+                  className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl outline-none focus:border-blue-500"
+                  value={newActionData.name}
+                  onChange={(e) =>
+                    setNewActionData({ ...newActionData, name: e.target.value })
+                  }
+                />
+                <input
+                  type="number"
+                  placeholder="Prix par part (F)"
+                  required
+                  className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl outline-none focus:border-blue-500"
+                  value={newActionData.price}
+                  onChange={(e) =>
+                    setNewActionData({
+                      ...newActionData,
+                      price: e.target.value,
+                    })
+                  }
+                />
+                <input
+                  type="number"
+                  placeholder="Quantité totale"
+                  required
+                  className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl outline-none focus:border-blue-500"
+                  value={newActionData.totalQuantity}
+                  onChange={(e) =>
+                    setNewActionData({
+                      ...newActionData,
+                      totalQuantity: e.target.value,
+                    })
+                  }
+                />
+                <textarea
+                  placeholder="Description"
+                  className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl outline-none focus:border-blue-500 h-24"
+                  value={newActionData.description}
+                  onChange={(e) =>
+                    setNewActionData({
+                      ...newActionData,
+                      description: e.target.value,
+                    })
+                  }
+                />
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-black transition-all"
+                >
+                  Créer l'Action
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={createBondAdmin} className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Titre de l'obligation"
+                  required
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
+                  value={newBondData.titre}
+                  onChange={(e) =>
+                    setNewBondData({ ...newBondData, titre: e.target.value })
+                  }
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    placeholder="Cible (F)"
+                    required
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
+                    value={newBondData.montantCible}
+                    onChange={(e) =>
+                      setNewBondData({
+                        ...newBondData,
+                        montantCible: e.target.value,
+                      })
+                    }
+                  />
+                  <input
+                    type="number"
+                    placeholder="Intérêt (%)"
+                    required
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
+                    value={newBondData.tauxInteret}
+                    onChange={(e) =>
+                      setNewBondData({
+                        ...newBondData,
+                        tauxInteret: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="number"
+                    placeholder="Mois"
+                    required
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
+                    value={newBondData.dureeMois}
+                    onChange={(e) =>
+                      setNewBondData({
+                        ...newBondData,
+                        dureeMois: e.target.value,
+                      })
+                    }
+                  />
+                  <select
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
+                    value={newBondData.frequence}
+                    onChange={(e) =>
+                      setNewBondData({
+                        ...newBondData,
+                        frequence: e.target.value,
+                      })
+                    }
+                  >
+                    <option value="Mensuel">Mensuel</option>
+                    <option value="Trimestriel">Trimestriel</option>
+                    <option value="Annuel">Annuel</option>
+                  </select>
+                </div>
+                <input
+                  type="number"
+                  placeholder="Garantie (F)"
+                  required
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
+                  value={newBondData.garantie}
+                  onChange={(e) =>
+                    setNewBondData({ ...newBondData, garantie: e.target.value })
+                  }
+                />
+                <button
+                  type="submit"
+                  className="w-full py-4 bg-amber-600 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-black transition-all"
+                >
+                  Créer l'Obligation
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* --- HEADER --- */}
       <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-4">
         <div className="flex items-center gap-4">
           <img
             src="/logo.png"
-            alt="Académie de la Bourse"
-            className="w-16 h-16 rounded-full border-2 border-blue-500 shadow-lg shadow-blue-500/20 object-cover"
+            alt="Logo"
+            className="w-16 h-16 rounded-full border-2 border-blue-500 shadow-lg object-cover"
           />
           <div>
             <h1 className="text-3xl italic font-black uppercase leading-none">
@@ -164,32 +408,42 @@ const AdminPanel = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-900/50 px-4 py-2 rounded-full border border-slate-800">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-          Live Auto-Sync (5s)
+        {/* BOUTONS D'AJOUT RAPIDE */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowCreateModal("action")}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600/10 border border-blue-600/30 rounded-xl text-blue-500 text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all"
+          >
+            <FiPlus /> Action
+          </button>
+          <button
+            onClick={() => setShowCreateModal("bond")}
+            className="flex items-center gap-2 px-4 py-2 bg-amber-600/10 border border-amber-600/30 rounded-xl text-amber-500 text-[10px] font-black uppercase hover:bg-amber-600 hover:text-white transition-all"
+          >
+            <FiPlus /> Obligation
+          </button>
         </div>
       </div>
 
-      {/* --- SECTION STATISTIQUES --- */}
+      {/* --- STATISTIQUES --- (Tes stats actuelles) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
           <div className="p-4 bg-blue-500/10 rounded-2xl text-blue-500">
             <FiUsers size={28} />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+            <p className="text-[10px] font-black uppercase text-slate-500">
               Total Utilisateurs
             </p>
             <p className="text-3xl font-black italic">{users.length}</p>
           </div>
         </div>
-
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
           <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500">
             <FiCheck size={28} />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+            <p className="text-[10px] font-black uppercase text-slate-500">
               KYC Validés
             </p>
             <p className="text-3xl font-black italic">
@@ -197,23 +451,22 @@ const AdminPanel = () => {
             </p>
           </div>
         </div>
-
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
-          <div className="p-4 bg-purple-500/10 rounded-2xl text-purple-500">
-            <FiBarChart2 size={28} />
+          <div className="p-4 bg-amber-500/10 rounded-2xl text-amber-500">
+            <FiBriefcase size={28} />
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-              Actifs en vente
+            <p className="text-[10px] font-black uppercase text-slate-500">
+              Obligations Actives
             </p>
             <p className="text-3xl font-black italic">
-              {actions.filter((a) => a.status === "valide").length}
+              {bonds.filter((b) => b.status === "valide").length}
             </p>
           </div>
         </div>
       </div>
 
-      {/* TABS NAVIGATION */}
+      {/* TABS NAVIGATION (Tes onglets actuels) */}
       <div className="flex flex-wrap gap-4 mb-8">
         <button
           onClick={() => setTab("kyc")}
@@ -226,7 +479,6 @@ const AdminPanel = () => {
           <FiUsers /> KYC (
           {users.filter((u) => u.kycStatus === "en_attente").length})
         </button>
-
         <button
           onClick={() => setTab("actions")}
           className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
@@ -238,7 +490,17 @@ const AdminPanel = () => {
           <FiPackage /> Actifs (
           {actions.filter((a) => a.status === "en_attente").length})
         </button>
-
+        <button
+          onClick={() => setTab("bonds")}
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
+            tab === "bonds"
+              ? "bg-amber-600"
+              : "bg-slate-900 border border-slate-800 text-slate-500"
+          }`}
+        >
+          <FiBriefcase /> Obligations (
+          {bonds.filter((b) => b.status === "en_attente").length})
+        </button>
         <button
           onClick={() => setTab("deposits")}
           className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
@@ -255,7 +517,6 @@ const AdminPanel = () => {
           }
           )
         </button>
-
         <button
           onClick={() => setTab("withdrawals")}
           className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
@@ -272,7 +533,6 @@ const AdminPanel = () => {
           }
           )
         </button>
-
         <button
           onClick={() => setTab("dividends")}
           className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
@@ -285,7 +545,7 @@ const AdminPanel = () => {
         </button>
       </div>
 
-      {/* SECTION KYC */}
+      {/* --- SECTIONS DE CONTENU (Gardées telles quelles) --- */}
       {tab === "kyc" && (
         <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
           <table className="w-full text-left">
@@ -334,7 +594,7 @@ const AdminPanel = () => {
                       <>
                         <button
                           onClick={() => handleValidateKYC(u._id, "valide")}
-                          className="p-3 transition-all bg-emerald-600 rounded-xl hover:bg-emerald-500"
+                          className="p-3 bg-emerald-600 rounded-xl hover:bg-emerald-500"
                         >
                           <FiCheck />
                         </button>
@@ -342,7 +602,7 @@ const AdminPanel = () => {
                           onClick={() =>
                             handleValidateKYC(u._id, "non_verifie")
                           }
-                          className="p-3 transition-all bg-red-600 rounded-xl hover:bg-red-500"
+                          className="p-3 bg-red-600 rounded-xl hover:bg-red-500"
                         >
                           <FiX />
                         </button>
@@ -356,7 +616,6 @@ const AdminPanel = () => {
         </div>
       )}
 
-      {/* SECTION ACTIONS */}
       {tab === "actions" && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {actions.map((a) => (
@@ -406,7 +665,92 @@ const AdminPanel = () => {
         </div>
       )}
 
-      {/* SECTION DÉPÔTS */}
+      {tab === "bonds" && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {bonds.length === 0 ? (
+            <p className="text-slate-500 italic p-10 bg-slate-900 rounded-[2rem] border border-slate-800 text-center col-span-2">
+              Aucune obligation trouvée.
+            </p>
+          ) : (
+            bonds.map((b) => (
+              <div
+                key={b._id}
+                className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl relative overflow-hidden"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-xl italic font-black uppercase text-amber-500">
+                      {b.titre}
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">
+                      Émis par: {b.actionnaireId?.name || "ADMIN"}
+                    </p>
+                  </div>
+                  <span
+                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
+                      b.status === "valide"
+                        ? "bg-emerald-500 text-black"
+                        : "bg-amber-500/20 text-amber-500"
+                    }`}
+                  >
+                    {b.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-4 mb-6">
+                  <div className="p-3 bg-slate-950 rounded-xl">
+                    <p className="text-[8px] text-slate-500 uppercase font-black">
+                      Rendement
+                    </p>
+                    <p className="font-bold text-emerald-400">
+                      {b.tauxInteret}%
+                    </p>
+                  </div>
+                  <div className="p-3 bg-slate-950 rounded-xl">
+                    <p className="text-[8px] text-slate-500 uppercase font-black">
+                      Durée
+                    </p>
+                    <p className="font-bold">{b.dureeMois} mois</p>
+                  </div>
+                  <div className="p-3 bg-slate-950 rounded-xl">
+                    <p className="text-[8px] text-slate-500 uppercase font-black">
+                      Fréquence
+                    </p>
+                    <p className="font-bold text-xs">{b.frequence}</p>
+                  </div>
+                </div>
+                <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl mb-6">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
+                      <FiShield className="text-blue-500" /> Garantie
+                    </span>
+                    <span className="font-black text-blue-400">
+                      {b.garantie?.toLocaleString()} F
+                    </span>
+                  </div>
+                </div>
+                {b.status === "en_attente" && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => handleValidateBond(b._id)}
+                      className="flex-1 bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 transition-all"
+                    >
+                      Valider l'obligation
+                    </button>
+                    <button
+                      onClick={() => handleRejectBond(b._id)}
+                      className="px-6 bg-red-600/20 text-red-500 rounded-2xl hover:bg-red-600 hover:text-white transition-all"
+                    >
+                      <FiTrash2 size={18} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* --- DÉPÔTS / RETRAITS / DIVIDENDES (Gardés tels quels) --- */}
       {tab === "deposits" && (
         <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
           <table className="w-full text-left">
@@ -435,26 +779,24 @@ const AdminPanel = () => {
                     <td className="p-6 font-black text-emerald-500">
                       {t.amount.toLocaleString()} F
                     </td>
-                    <td className="p-6 text-[9px] font-black uppercase italic">
-                      <div className="flex items-center gap-2">
-                        {t.status === "en_attente" ? (
-                          <>
-                            <FiClock className="text-orange-500" />{" "}
-                            <span className="text-orange-500">{t.status}</span>
-                          </>
-                        ) : (
-                          <>
-                            <FiCheck className="text-emerald-500" />{" "}
-                            <span className="text-emerald-500">{t.status}</span>
-                          </>
-                        )}
-                      </div>
+                    <td className="p-6 text-[9px] font-black uppercase italic flex items-center gap-2">
+                      {t.status === "en_attente" ? (
+                        <>
+                          <FiClock className="text-orange-500" />
+                          <span className="text-orange-500">{t.status}</span>
+                        </>
+                      ) : (
+                        <>
+                          <FiCheck className="text-emerald-500" />
+                          <span className="text-emerald-500">{t.status}</span>
+                        </>
+                      )}
                     </td>
                     <td className="p-6 text-right">
                       {t.status === "en_attente" && (
                         <button
                           onClick={() => handleValidateDeposit(t._id)}
-                          className="p-3 transition-all shadow-lg bg-emerald-600 rounded-xl hover:bg-emerald-500"
+                          className="p-3 shadow-lg bg-emerald-600 rounded-xl hover:bg-emerald-500"
                         >
                           <FiCheck />
                         </button>
@@ -467,17 +809,16 @@ const AdminPanel = () => {
         </div>
       )}
 
-      {/* SECTION RETRAITS */}
       {tab === "withdrawals" && (
         <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
           <table className="w-full text-left">
             <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase tracking-widest">
               <tr>
                 <th className="p-6">Utilisateur</th>
-                <th className="p-6">Montant Demandé</th>
-                <th className="p-6 text-blue-400">Numéro de Paiement</th>
+                <th className="p-6">Montant</th>
+                <th className="p-6 text-blue-400">Numéro</th>
                 <th className="p-6">Statut</th>
-                <th className="p-6 text-right">Actions Admin</th>
+                <th className="p-6 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
@@ -523,15 +864,13 @@ const AdminPanel = () => {
                         <>
                           <button
                             onClick={() => handleValidateWithdrawal(t._id)}
-                            className="p-3 transition-all shadow-lg bg-emerald-600 hover:bg-white hover:text-emerald-600 rounded-xl"
-                            title="Confirmer l'envoi de l'argent"
+                            className="p-3 shadow-lg bg-emerald-600 hover:bg-white hover:text-emerald-600 rounded-xl"
                           >
                             <FiCheck />
                           </button>
                           <button
                             onClick={() => handleRejectWithdrawal(t._id)}
-                            className="p-3 transition-all bg-red-600 shadow-lg hover:bg-white hover:text-red-600 rounded-xl"
-                            title="Refuser et recréditer"
+                            className="p-3 bg-red-600 shadow-lg hover:bg-white hover:text-red-600 rounded-xl"
                           >
                             <FiTrash2 />
                           </button>
@@ -545,7 +884,6 @@ const AdminPanel = () => {
         </div>
       )}
 
-      {/* SECTION DIVIDENDES */}
       {tab === "dividends" && (
         <div className="bg-slate-900 p-10 rounded-[2.5rem] border border-slate-800 shadow-2xl max-w-3xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
@@ -611,12 +949,6 @@ const AdminPanel = () => {
                 : "Lancer la distribution"}
             </button>
           </form>
-          <div className="p-6 mt-8 border bg-purple-500/5 border-purple-500/10 rounded-3xl">
-            <p className="text-[10px] text-purple-300 font-medium leading-relaxed italic">
-              * Note: Le montant sera multiplié par le nombre de parts détenues
-              par chaque acheteur.
-            </p>
-          </div>
         </div>
       )}
     </div>

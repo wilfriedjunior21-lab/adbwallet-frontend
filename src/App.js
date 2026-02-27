@@ -17,10 +17,11 @@ import AdminPanel from "./pages/AdminPanel";
 import Wallet from "./pages/Wallet";
 import ProposerActif from "./pages/ProposerActif";
 
-// NOUVEL IMPORT : La page qui reçoit le scan du QR Code
-import MobileDeposit from "./pages/MobileDeposit";
+// IMPORT CORRIGÉ : On importe ProposeBond (et non ProposerActif une deuxième fois)
+import ProposeBond from "./pages/ProposeBond";
 
-// AJOUT : Importation de la page de succès de paiement
+// AUTRES IMPORTS
+import MobileDeposit from "./pages/MobileDeposit";
 import Success from "./pages/Success";
 
 function App() {
@@ -33,20 +34,18 @@ function App() {
     <Router>
       <div className="min-h-screen text-white bg-black">
         {/* --- NAVIGATION DYNAMIQUE --- */}
-        {/* La barre de navigation ne s'affiche que si l'utilisateur est connecté */}
         {isAuthenticated && (
           <>{role === "actionnaire" ? <NavbarActionnaire /> : <Navbar />}</>
         )}
 
         <Routes>
-          {/* --- ROUTE D'ACCUEIL / LOGIN --- */}
+          {/* --- ACCUEIL / AUTH --- */}
           <Route
             path="/"
             element={
               !isAuthenticated ? (
                 <Login />
               ) : (
-                /* Redirection automatique vers le bon dashboard si déjà connecté */
                 <Navigate
                   to={
                     role === "admin"
@@ -60,14 +59,8 @@ function App() {
             }
           />
 
-          {/* --- INSCRIPTION --- */}
           <Route path="/register" element={<Register />} />
-
-          {/* --- NOUVELLE ROUTE : MOBILE DEPOSIT (ACCESSIBLE VIA QR CODE) --- */}
           <Route path="/mobile-deposit" element={<MobileDeposit />} />
-
-          {/* --- AJOUT ROUTE SUCCÈS PAIEMENT --- */}
-          {/* Accessible pour confirmer le retour de PayMooney */}
           <Route path="/success" element={<Success />} />
 
           {/* --- ROUTES ACHETEUR --- */}
@@ -114,6 +107,18 @@ function App() {
             }
           />
 
+          {/* NOUVELLE ROUTE OBLIGATIONS */}
+          <Route
+            path="/propose-bond"
+            element={
+              isAuthenticated && role === "actionnaire" ? (
+                <ProposeBond />
+              ) : (
+                <Navigate to="/" />
+              )
+            }
+          />
+
           {/* --- ROUTE ADMIN --- */}
           <Route
             path="/admin"
@@ -126,7 +131,6 @@ function App() {
             }
           />
 
-          {/* --- REDIRECTION PAR DÉFAUT (404) --- */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
