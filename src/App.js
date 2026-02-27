@@ -31,12 +31,7 @@ function App() {
 
   return (
     <Router>
-      {/* MODIFICATION ICI : 
-          - On remplace "bg-black text-white" par des classes dynamiques.
-          - "dark:bg-black dark:text-white" garde ton style actuel en mode sombre.
-          - "bg-white text-slate-900" définit le style pour le mode clair.
-      */}
-      <div className="min-h-screen bg-white dark:bg-black text-slate-900 dark:text-white transition-colors duration-300">
+      <div className="min-h-screen text-white bg-black">
         {/* --- NAVIGATION DYNAMIQUE --- */}
         {/* La barre de navigation ne s'affiche que si l'utilisateur est connecté */}
         {isAuthenticated && (
