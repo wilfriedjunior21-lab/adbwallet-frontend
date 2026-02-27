@@ -51,10 +51,10 @@ const AdminPanel = () => {
   const fetchData = useCallback(async (isAutoRefresh = false) => {
     try {
       const [uRes, aRes, tRes, bRes] = await Promise.all([
-        api.get("/api/admin/users"),
-        api.get("/api/admin/actions"),
-        api.get("/api/admin/transactions"),
-        api.get("/api/admin/bonds"),
+        api.get("/admin/users"),
+        api.get("/admin/actions"),
+        api.get("/admin/transactions"),
+        api.get("/admin/bonds"),
       ]);
       setUsers(uRes.data);
       setActions(aRes.data);
