@@ -15,7 +15,7 @@ import {
   FiPhone,
   FiBarChart2,
   FiBriefcase,
-  FiPlus, // Icône pour l'ajout
+  FiPlus,
 } from "react-icons/fi";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -48,6 +48,7 @@ const AdminPanel = () => {
     description: "",
   });
 
+  // --- CHARGEMENT DES DONNÉES ---
   const fetchData = useCallback(async (isAutoRefresh = false) => {
     try {
       const [uRes, aRes, tRes, bRes] = await Promise.all([
@@ -76,10 +77,10 @@ const AdminPanel = () => {
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
-  // --- FONCTIONS EXISTANTES CONSERVÉES ---
+  // --- GESTION KYC ---
   const handleValidateKYC = async (id, status) => {
     try {
-      await api.patch(`/api/admin/kyc/${id}`, { status });
+      await api.patch(`/admin/kyc/${id}`, { status });
       toast.success(`Utilisateur mis à jour : ${status}`);
       fetchData();
     } catch (err) {
@@ -87,9 +88,10 @@ const AdminPanel = () => {
     }
   };
 
+  // --- GESTION ACTIONS ---
   const handleValidateAction = async (id) => {
     try {
-      await api.patch(`/api/admin/actions/${id}/validate`);
+      await api.patch(`/admin/actions/${id}/validate`);
       toast.success("Action publiée sur le marché !");
       fetchData();
     } catch (err) {
@@ -97,9 +99,28 @@ const AdminPanel = () => {
     }
   };
 
+  const createActionAdmin = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post("/admin/actions/create", newActionData);
+      toast.success("Action créée avec succès !");
+      setShowCreateModal(null);
+      setNewActionData({
+        name: "",
+        price: "",
+        totalQuantity: "",
+        description: "",
+      });
+      fetchData();
+    } catch (err) {
+      toast.error("Erreur lors de la création de l'action");
+    }
+  };
+
+  // --- GESTION TRANSACTIONS (Dépôts / Retraits) ---
   const handleValidateDeposit = async (id) => {
     try {
-      await api.patch(`/api/admin/transactions/${id}/validate`);
+      await api.patch(`/admin/transactions/${id}/validate`);
       toast.success("Dépôt validé et compte crédité !");
       fetchData();
     } catch (err) {
@@ -115,7 +136,7 @@ const AdminPanel = () => {
     )
       return;
     try {
-      await api.patch(`/api/admin/transactions/${id}/validate`);
+      await api.patch(`/admin/transactions/${id}/validate`);
       toast.success("Retrait marqué comme terminé !");
       fetchData();
     } catch (err) {
@@ -129,7 +150,7 @@ const AdminPanel = () => {
     );
     if (reason === null) return;
     try {
-      await api.patch(`/api/admin/transactions/${id}/reject`, { reason });
+      await api.patch(`/admin/transactions/${id}/reject`, { reason });
       toast.success("Retrait refusé. L'utilisateur a été recrédité.");
       fetchData();
     } catch (err) {
@@ -137,6 +158,7 @@ const AdminPanel = () => {
     }
   };
 
+  // --- GESTION DIVIDENDES ---
   const handleDistributeDividends = async (e) => {
     e.preventDefault();
     if (!selectedAction || !amountPerShare)
@@ -145,7 +167,7 @@ const AdminPanel = () => {
     if (!confirmDist) return;
     setIsProcessing(true);
     try {
-      const res = await api.post("/api/admin/distribute-dividends", {
+      const res = await api.post("/admin/distribute-dividends", {
         actionId: selectedAction,
         amountPerShare: Number(amountPerShare),
       });
@@ -159,9 +181,10 @@ const AdminPanel = () => {
     }
   };
 
+  // --- GESTION OBLIGATIONS (BONDS) ---
   const handleValidateBond = async (id) => {
     try {
-      await api.patch(`/api/admin/bonds/${id}/validate`);
+      await api.patch(`/admin/bonds/${id}/validate`);
       toast.success("Obligation approuvée et mise en ligne !");
       fetchData();
     } catch (err) {
@@ -173,7 +196,7 @@ const AdminPanel = () => {
     if (!window.confirm("Voulez-vous vraiment rejeter cette obligation ?"))
       return;
     try {
-      await api.delete(`/api/admin/bonds/${id}`);
+      await api.delete(`/admin/bonds/${id}`);
       toast.success("Obligation rejetée");
       fetchData();
     } catch (err) {
@@ -181,29 +204,10 @@ const AdminPanel = () => {
     }
   };
 
-  // --- NOUVELLES FONCTIONS : CRÉATION DIRECTE ADMIN ---
-  const createActionAdmin = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post("/api/admin/actions/create", newActionData);
-      toast.success("Action créée avec succès !");
-      setShowCreateModal(null);
-      setNewActionData({
-        name: "",
-        price: "",
-        totalQuantity: "",
-        description: "",
-      });
-      fetchData();
-    } catch (err) {
-      toast.error("Erreur lors de la création de l'action");
-    }
-  };
-
   const createBondAdmin = async (e) => {
     e.preventDefault();
     try {
-      await api.post("/api/admin/bonds/create", newBondData);
+      await api.post("/admin/bonds/create", newBondData);
       toast.success("Obligation créée avec succès !");
       setShowCreateModal(null);
       setNewBondData({
@@ -222,10 +226,10 @@ const AdminPanel = () => {
   };
 
   return (
-    <div className="p-6 mx-auto text-white max-w-7xl relative">
+    <div className="p-6 mx-auto text-white max-w-7xl relative min-h-screen bg-slate-950">
       <Toaster />
 
-      {/* --- MODAL DE CRÉATION (S'affiche par dessus) --- */}
+      {/* --- MODAL DE CRÉATION --- */}
       {showCreateModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
@@ -354,7 +358,7 @@ const AdminPanel = () => {
                     }
                   />
                   <select
-                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none"
                     value={newBondData.frequence}
                     onChange={(e) =>
                       setNewBondData({
@@ -393,11 +397,9 @@ const AdminPanel = () => {
       {/* --- HEADER --- */}
       <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-4">
         <div className="flex items-center gap-4">
-          <img
-            src="/logo.png"
-            alt="Logo"
-            className="w-16 h-16 rounded-full border-2 border-blue-500 shadow-lg object-cover"
-          />
+          <div className="w-16 h-16 rounded-full border-2 border-blue-500 bg-slate-800 flex items-center justify-center text-2xl font-black italic">
+            A
+          </div>
           <div>
             <h1 className="text-3xl italic font-black uppercase leading-none">
               Adb <span className="text-blue-500">Wallet</span>
@@ -407,8 +409,6 @@ const AdminPanel = () => {
             </p>
           </div>
         </div>
-
-        {/* BOUTONS D'AJOUT RAPIDE */}
         <div className="flex gap-3">
           <button
             onClick={() => setShowCreateModal("action")}
@@ -425,9 +425,9 @@ const AdminPanel = () => {
         </div>
       </div>
 
-      {/* --- STATISTIQUES --- (Tes stats actuelles) */}
+      {/* --- STATS --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6">
           <div className="p-4 bg-blue-500/10 rounded-2xl text-blue-500">
             <FiUsers size={28} />
           </div>
@@ -438,7 +438,7 @@ const AdminPanel = () => {
             <p className="text-3xl font-black italic">{users.length}</p>
           </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6">
           <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500">
             <FiCheck size={28} />
           </div>
@@ -451,7 +451,7 @@ const AdminPanel = () => {
             </p>
           </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6">
           <div className="p-4 bg-amber-500/10 rounded-2xl text-amber-500">
             <FiBriefcase size={28} />
           </div>
@@ -466,14 +466,12 @@ const AdminPanel = () => {
         </div>
       </div>
 
-      {/* TABS NAVIGATION (Tes onglets actuels) */}
+      {/* --- NAVIGATION --- */}
       <div className="flex flex-wrap gap-4 mb-8">
         <button
           onClick={() => setTab("kyc")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
-            tab === "kyc"
-              ? "bg-blue-600"
-              : "bg-slate-900 border border-slate-800 text-slate-500"
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
+            tab === "kyc" ? "bg-blue-600" : "bg-slate-900 text-slate-500"
           }`}
         >
           <FiUsers /> KYC (
@@ -481,10 +479,8 @@ const AdminPanel = () => {
         </button>
         <button
           onClick={() => setTab("actions")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
-            tab === "actions"
-              ? "bg-blue-600"
-              : "bg-slate-900 border border-slate-800 text-slate-500"
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
+            tab === "actions" ? "bg-blue-600" : "bg-slate-900 text-slate-500"
           }`}
         >
           <FiPackage /> Actifs (
@@ -492,10 +488,8 @@ const AdminPanel = () => {
         </button>
         <button
           onClick={() => setTab("bonds")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
-            tab === "bonds"
-              ? "bg-amber-600"
-              : "bg-slate-900 border border-slate-800 text-slate-500"
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
+            tab === "bonds" ? "bg-amber-600" : "bg-slate-900 text-slate-500"
           }`}
         >
           <FiBriefcase /> Obligations (
@@ -503,10 +497,10 @@ const AdminPanel = () => {
         </button>
         <button
           onClick={() => setTab("deposits")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
             tab === "deposits"
               ? "bg-emerald-600"
-              : "bg-slate-900 border border-slate-800 text-slate-500"
+              : "bg-slate-900 text-slate-500"
           }`}
         >
           <FiDollarSign /> Dépôts (
@@ -519,10 +513,8 @@ const AdminPanel = () => {
         </button>
         <button
           onClick={() => setTab("withdrawals")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
-            tab === "withdrawals"
-              ? "bg-red-600"
-              : "bg-slate-900 border border-slate-800 text-slate-500"
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
+            tab === "withdrawals" ? "bg-red-600" : "bg-slate-900 text-slate-500"
           }`}
         >
           <FiArrowUpRight /> Retraits (
@@ -535,21 +527,21 @@ const AdminPanel = () => {
         </button>
         <button
           onClick={() => setTab("dividends")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
             tab === "dividends"
               ? "bg-purple-600"
-              : "bg-slate-900 border border-slate-800 text-slate-500"
+              : "bg-slate-900 text-slate-500"
           }`}
         >
           <FiPieChart /> Dividendes
         </button>
       </div>
 
-      {/* --- SECTIONS DE CONTENU (Gardées telles quelles) --- */}
+      {/* --- SECTIONS DE CONTENU --- */}
       {tab === "kyc" && (
-        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
+        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden">
           <table className="w-full text-left">
-            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase">
               <tr>
                 <th className="p-6">Utilisateur</th>
                 <th className="p-6">Document</th>
@@ -559,10 +551,7 @@ const AdminPanel = () => {
             </thead>
             <tbody className="divide-y divide-slate-800">
               {users.map((u) => (
-                <tr
-                  key={u._id}
-                  className="transition-colors hover:bg-slate-800/50"
-                >
+                <tr key={u._id} className="hover:bg-slate-800/50">
                   <td className="p-6 font-bold">
                     {u.name} <br />
                     <span className="text-[10px] text-slate-500">
@@ -594,7 +583,7 @@ const AdminPanel = () => {
                       <>
                         <button
                           onClick={() => handleValidateKYC(u._id, "valide")}
-                          className="p-3 bg-emerald-600 rounded-xl hover:bg-emerald-500"
+                          className="p-3 bg-emerald-600 rounded-xl"
                         >
                           <FiCheck />
                         </button>
@@ -602,7 +591,7 @@ const AdminPanel = () => {
                           onClick={() =>
                             handleValidateKYC(u._id, "non_verifie")
                           }
-                          className="p-3 bg-red-600 rounded-xl hover:bg-red-500"
+                          className="p-3 bg-red-600 rounded-xl"
                         >
                           <FiX />
                         </button>
@@ -621,7 +610,7 @@ const AdminPanel = () => {
           {actions.map((a) => (
             <div
               key={a._id}
-              className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl"
+              className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800"
             >
               <div className="flex items-start justify-between mb-4">
                 <h3 className="text-xl italic font-black uppercase">
@@ -640,13 +629,13 @@ const AdminPanel = () => {
               <p className="mb-6 text-xs text-slate-500">{a.description}</p>
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="p-4 bg-slate-950 rounded-2xl">
-                  <p className="text-[8px] text-slate-500 uppercase font-black">
+                  <p className="text-[8px] text-slate-500 uppercase">
                     Prix / Part
                   </p>
                   <p className="font-bold text-blue-400">{a.price} F</p>
                 </div>
                 <div className="p-4 bg-slate-950 rounded-2xl">
-                  <p className="text-[8px] text-slate-500 uppercase font-black">
+                  <p className="text-[8px] text-slate-500 uppercase">
                     Quantité
                   </p>
                   <p className="font-bold">{a.totalQuantity} unités</p>
@@ -668,21 +657,21 @@ const AdminPanel = () => {
       {tab === "bonds" && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {bonds.length === 0 ? (
-            <p className="text-slate-500 italic p-10 bg-slate-900 rounded-[2rem] border border-slate-800 text-center col-span-2">
+            <p className="text-slate-500 italic p-10 bg-slate-900 rounded-[2rem] text-center col-span-2">
               Aucune obligation trouvée.
             </p>
           ) : (
             bonds.map((b) => (
               <div
                 key={b._id}
-                className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl relative overflow-hidden"
+                className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h3 className="text-xl italic font-black uppercase text-amber-500">
                       {b.titre}
                     </h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">
+                    <p className="text-[10px] text-slate-400 uppercase">
                       Émis par: {b.actionnaireId?.name || "ADMIN"}
                     </p>
                   </div>
@@ -698,49 +687,33 @@ const AdminPanel = () => {
                 </div>
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="p-3 bg-slate-950 rounded-xl">
-                    <p className="text-[8px] text-slate-500 uppercase font-black">
-                      Rendement
-                    </p>
+                    <p className="text-[8px] uppercase">Rendement</p>
                     <p className="font-bold text-emerald-400">
                       {b.tauxInteret}%
                     </p>
                   </div>
                   <div className="p-3 bg-slate-950 rounded-xl">
-                    <p className="text-[8px] text-slate-500 uppercase font-black">
-                      Durée
-                    </p>
-                    <p className="font-bold">{b.dureeMois} mois</p>
+                    <p className="text-[8px] uppercase">Durée</p>
+                    <p className="font-bold">{b.dureeMois} m</p>
                   </div>
                   <div className="p-3 bg-slate-950 rounded-xl">
-                    <p className="text-[8px] text-slate-500 uppercase font-black">
-                      Fréquence
-                    </p>
-                    <p className="font-bold text-xs">{b.frequence}</p>
-                  </div>
-                </div>
-                <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl mb-6">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
-                      <FiShield className="text-blue-500" /> Garantie
-                    </span>
-                    <span className="font-black text-blue-400">
-                      {b.garantie?.toLocaleString()} F
-                    </span>
+                    <p className="text-[8px] uppercase">Fréq.</p>
+                    <p className="font-bold text-[10px]">{b.frequence}</p>
                   </div>
                 </div>
                 {b.status === "en_attente" && (
                   <div className="flex gap-3">
                     <button
                       onClick={() => handleValidateBond(b._id)}
-                      className="flex-1 bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 transition-all"
+                      className="flex-1 bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] hover:bg-white hover:text-amber-600 transition-all"
                     >
-                      Valider l'obligation
+                      Valider
                     </button>
                     <button
                       onClick={() => handleRejectBond(b._id)}
                       className="px-6 bg-red-600/20 text-red-500 rounded-2xl hover:bg-red-600 hover:text-white transition-all"
                     >
-                      <FiTrash2 size={18} />
+                      <FiTrash2 />
                     </button>
                   </div>
                 )}
@@ -750,11 +723,10 @@ const AdminPanel = () => {
         </div>
       )}
 
-      {/* --- DÉPÔTS / RETRAITS / DIVIDENDES (Gardés tels quels) --- */}
       {tab === "deposits" && (
-        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
+        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden">
           <table className="w-full text-left">
-            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase">
               <tr>
                 <th className="p-6">Utilisateur</th>
                 <th className="p-6">Montant</th>
@@ -766,12 +738,10 @@ const AdminPanel = () => {
               {transactions
                 .filter((t) => t.type === "depot")
                 .map((t) => (
-                  <tr
-                    key={t._id}
-                    className="transition-colors hover:bg-slate-800/50"
-                  >
+                  <tr key={t._id} className="hover:bg-slate-800/50">
                     <td className="p-6 font-bold">
-                      {t.userId?.name || "Inconnu"} <br />
+                      {t.userId?.name || "Inconnu"}
+                      <br />
                       <span className="text-[10px] text-slate-500">
                         {t.userId?.email}
                       </span>
@@ -779,24 +749,22 @@ const AdminPanel = () => {
                     <td className="p-6 font-black text-emerald-500">
                       {t.amount.toLocaleString()} F
                     </td>
-                    <td className="p-6 text-[9px] font-black uppercase italic flex items-center gap-2">
-                      {t.status === "en_attente" ? (
-                        <>
-                          <FiClock className="text-orange-500" />
-                          <span className="text-orange-500">{t.status}</span>
-                        </>
-                      ) : (
-                        <>
-                          <FiCheck className="text-emerald-500" />
-                          <span className="text-emerald-500">{t.status}</span>
-                        </>
-                      )}
+                    <td className="p-6 text-[9px] font-black uppercase italic">
+                      <span
+                        className={
+                          t.status === "en_attente"
+                            ? "text-orange-500"
+                            : "text-emerald-500"
+                        }
+                      >
+                        {t.status}
+                      </span>
                     </td>
                     <td className="p-6 text-right">
                       {t.status === "en_attente" && (
                         <button
                           onClick={() => handleValidateDeposit(t._id)}
-                          className="p-3 shadow-lg bg-emerald-600 rounded-xl hover:bg-emerald-500"
+                          className="p-3 bg-emerald-600 rounded-xl"
                         >
                           <FiCheck />
                         </button>
@@ -810,9 +778,9 @@ const AdminPanel = () => {
       )}
 
       {tab === "withdrawals" && (
-        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
+        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden">
           <table className="w-full text-left">
-            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase tracking-widest">
+            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase">
               <tr>
                 <th className="p-6">Utilisateur</th>
                 <th className="p-6">Montant</th>
@@ -825,54 +793,31 @@ const AdminPanel = () => {
               {transactions
                 .filter((t) => t.type === "retrait")
                 .map((t) => (
-                  <tr
-                    key={t._id}
-                    className="transition-colors hover:bg-slate-800/50"
-                  >
-                    <td className="p-6 font-bold">
-                      {t.userId?.name || "Inconnu"} <br />
-                      <span className="text-[10px] text-slate-500">
-                        {t.userId?.email}
-                      </span>
-                    </td>
+                  <tr key={t._id} className="hover:bg-slate-800/50">
+                    <td className="p-6 font-bold">{t.userId?.name}</td>
                     <td className="p-6 font-black text-red-500">
-                      -{t.amount.toLocaleString()} F
+                      {t.amount.toLocaleString()} F
                     </td>
-                    <td className="p-6">
-                      <div className="flex items-center gap-2 px-3 py-2 border bg-black/40 border-slate-800 rounded-xl w-fit">
-                        <FiPhone className="text-blue-500" size={14} />
-                        <span className="text-xs font-black tracking-wider text-white">
-                          {t.recipientPhone || "N/A"}
-                        </span>
-                      </div>
+                    <td className="p-6 font-mono text-blue-400">
+                      {t.paymentNumber || "N/A"}
                     </td>
-                    <td className="p-6 text-[9px] font-black uppercase italic">
-                      <span
-                        className={`px-3 py-1 rounded-full ${
-                          t.status === "en_attente"
-                            ? "bg-orange-500/10 text-orange-500"
-                            : t.status === "valide"
-                            ? "bg-emerald-500/10 text-emerald-500"
-                            : "bg-red-500/10 text-red-500"
-                        }`}
-                      >
-                        {t.status}
-                      </span>
+                    <td className="p-6 uppercase text-[9px] font-black italic">
+                      {t.status}
                     </td>
-                    <td className="p-6 space-x-2 text-right">
+                    <td className="p-6 text-right space-x-2">
                       {t.status === "en_attente" && (
                         <>
                           <button
                             onClick={() => handleValidateWithdrawal(t._id)}
-                            className="p-3 shadow-lg bg-emerald-600 hover:bg-white hover:text-emerald-600 rounded-xl"
+                            className="p-3 bg-emerald-600 rounded-xl"
                           >
                             <FiCheck />
                           </button>
                           <button
                             onClick={() => handleRejectWithdrawal(t._id)}
-                            className="p-3 bg-red-600 shadow-lg hover:bg-white hover:text-red-600 rounded-xl"
+                            className="p-3 bg-red-600 rounded-xl"
                           >
-                            <FiTrash2 />
+                            <FiX />
                           </button>
                         </>
                       )}
@@ -885,68 +830,59 @@ const AdminPanel = () => {
       )}
 
       {tab === "dividends" && (
-        <div className="bg-slate-900 p-10 rounded-[2.5rem] border border-slate-800 shadow-2xl max-w-3xl mx-auto">
+        <div className="bg-slate-900 p-10 rounded-[2.5rem] border border-slate-800 max-w-2xl mx-auto shadow-2xl">
           <div className="flex items-center gap-4 mb-8">
-            <div className="p-4 text-purple-500 bg-purple-500/10 rounded-2xl">
+            <div className="p-4 bg-purple-500/10 rounded-2xl text-purple-500">
               <FiPieChart size={32} />
             </div>
-            <div>
-              <h2 className="text-2xl italic font-black text-white uppercase">
-                Distribuer des Dividendes
-              </h2>
-              <p className="text-xs font-bold tracking-wider uppercase text-slate-500">
-                Rémunérer les détenteurs d'actifs
-              </p>
-            </div>
+            <h2 className="text-2xl font-black italic uppercase">
+              Distribuer <span className="text-purple-500">Dividendes</span>
+            </h2>
           </div>
           <form onSubmit={handleDistributeDividends} className="space-y-6">
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-2">
-                Sélectionner l'entreprise
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-500">
+                Sélectionner l'Actif
               </label>
               <select
+                className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none focus:border-purple-500"
                 value={selectedAction}
                 onChange={(e) => setSelectedAction(e.target.value)}
-                className="w-full p-5 text-sm font-bold text-white transition-all border outline-none bg-slate-950 border-slate-800 rounded-2xl focus:border-purple-500"
               >
-                <option value="">Choisir un actif valide...</option>
+                <option value="">-- Choisir une entreprise --</option>
                 {actions
                   .filter((a) => a.status === "valide")
-                  .map((action) => (
-                    <option key={action._id} value={action._id}>
-                      {action.name} ({action.price} F / part)
+                  .map((a) => (
+                    <option key={a._id} value={a._id}>
+                      {a.name}
                     </option>
                   ))}
               </select>
             </div>
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-2">
-                Montant à verser par part possédée
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-500">
+                Montant par part (F)
               </label>
-              <div className="relative">
-                <FiDollarSign className="absolute text-purple-500 -translate-y-1/2 left-5 top-1/2" />
-                <input
-                  type="number"
-                  placeholder="Exemple: 50"
-                  value={amountPerShare}
-                  onChange={(e) => setAmountPerShare(e.target.value)}
-                  className="w-full p-5 pl-12 text-sm font-bold text-white transition-all border outline-none bg-slate-950 border-slate-800 rounded-2xl focus:border-purple-500"
-                />
-              </div>
+              <input
+                type="number"
+                placeholder="Ex: 500"
+                className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none focus:border-purple-500"
+                value={amountPerShare}
+                onChange={(e) => setAmountPerShare(e.target.value)}
+              />
             </div>
             <button
               type="submit"
               disabled={isProcessing}
-              className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all shadow-xl ${
-                isProcessing
-                  ? "bg-slate-800 text-slate-600"
-                  : "bg-purple-600 hover:bg-white hover:text-purple-600"
-              }`}
+              className="w-full py-5 bg-purple-600 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white hover:text-black transition-all flex items-center justify-center gap-2"
             >
-              <FiSend />{" "}
-              {isProcessing
-                ? "Traitement en cours..."
-                : "Lancer la distribution"}
+              {isProcessing ? (
+                "Traitement..."
+              ) : (
+                <>
+                  <FiSend /> Lancer la distribution
+                </>
+              )}
             </button>
           </form>
         </div>
