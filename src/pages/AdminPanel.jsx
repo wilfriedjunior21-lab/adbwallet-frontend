@@ -14,8 +14,7 @@ import {
   FiTrash2,
   FiPhone,
   FiBarChart2,
-  FiBriefcase,
-  FiPlus,
+  FiBriefcase, // Nouvel icône pour les obligations
 } from "react-icons/fi";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -23,39 +22,20 @@ const AdminPanel = () => {
   const [users, setUsers] = useState([]);
   const [actions, setActions] = useState([]);
   const [transactions, setTransactions] = useState([]);
-  const [bonds, setBonds] = useState([]);
+  const [bonds, setBonds] = useState([]); // État pour les obligations
   const [tab, setTab] = useState("kyc");
 
   const [selectedAction, setSelectedAction] = useState("");
   const [amountPerShare, setAmountPerShare] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // États pour la création directe par l'admin
-  const [showCreateModal, setShowCreateModal] = useState(null); // 'action' ou 'bond' ou null
-  const [newActionData, setNewActionData] = useState({
-    name: "",
-    price: "",
-    totalQuantity: "",
-    description: "",
-  });
-  const [newBondData, setNewBondData] = useState({
-    titre: "",
-    montantCible: "",
-    tauxInteret: "",
-    dureeMois: "",
-    frequence: "Annuel",
-    garantie: "",
-    description: "",
-  });
-
-  // --- CHARGEMENT DES DONNÉES ---
   const fetchData = useCallback(async (isAutoRefresh = false) => {
     try {
       const [uRes, aRes, tRes, bRes] = await Promise.all([
-        api.get("/admin/users"),
-        api.get("/admin/actions"),
-        api.get("/admin/transactions"),
-        api.get("/admin/bonds"),
+        api.get("/api/admin/users"),
+        api.get("/api/admin/actions"),
+        api.get("/api/admin/transactions"),
+        api.get("/api/admin/bonds"), // Route API pour les obligations
       ]);
       setUsers(uRes.data);
       setActions(aRes.data);
@@ -77,10 +57,10 @@ const AdminPanel = () => {
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
-  // --- GESTION KYC ---
+  // --- FONCTIONS EXISTANTES (PRÉSERVÉES) ---
   const handleValidateKYC = async (id, status) => {
     try {
-      await api.patch(`/admin/kyc/${id}`, { status });
+      await api.patch(`/api/admin/kyc/${id}`, { status });
       toast.success(`Utilisateur mis à jour : ${status}`);
       fetchData();
     } catch (err) {
@@ -88,10 +68,9 @@ const AdminPanel = () => {
     }
   };
 
-  // --- GESTION ACTIONS ---
   const handleValidateAction = async (id) => {
     try {
-      await api.patch(`/admin/actions/${id}/validate`);
+      await api.patch(`/api/admin/actions/${id}/validate`);
       toast.success("Action publiée sur le marché !");
       fetchData();
     } catch (err) {
@@ -99,28 +78,9 @@ const AdminPanel = () => {
     }
   };
 
-  const createActionAdmin = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post("/admin/actions/create", newActionData);
-      toast.success("Action créée avec succès !");
-      setShowCreateModal(null);
-      setNewActionData({
-        name: "",
-        price: "",
-        totalQuantity: "",
-        description: "",
-      });
-      fetchData();
-    } catch (err) {
-      toast.error("Erreur lors de la création de l'action");
-    }
-  };
-
-  // --- GESTION TRANSACTIONS (Dépôts / Retraits) ---
   const handleValidateDeposit = async (id) => {
     try {
-      await api.patch(`/admin/transactions/${id}/validate`);
+      await api.patch(`/api/admin/transactions/${id}/validate`);
       toast.success("Dépôt validé et compte crédité !");
       fetchData();
     } catch (err) {
@@ -136,7 +96,7 @@ const AdminPanel = () => {
     )
       return;
     try {
-      await api.patch(`/admin/transactions/${id}/validate`);
+      await api.patch(`/api/admin/transactions/${id}/validate`);
       toast.success("Retrait marqué comme terminé !");
       fetchData();
     } catch (err) {
@@ -150,7 +110,7 @@ const AdminPanel = () => {
     );
     if (reason === null) return;
     try {
-      await api.patch(`/admin/transactions/${id}/reject`, { reason });
+      await api.patch(`/api/admin/transactions/${id}/reject`, { reason });
       toast.success("Retrait refusé. L'utilisateur a été recrédité.");
       fetchData();
     } catch (err) {
@@ -158,7 +118,6 @@ const AdminPanel = () => {
     }
   };
 
-  // --- GESTION DIVIDENDES ---
   const handleDistributeDividends = async (e) => {
     e.preventDefault();
     if (!selectedAction || !amountPerShare)
@@ -167,7 +126,7 @@ const AdminPanel = () => {
     if (!confirmDist) return;
     setIsProcessing(true);
     try {
-      const res = await api.post("/admin/distribute-dividends", {
+      const res = await api.post("/api/admin/distribute-dividends", {
         actionId: selectedAction,
         amountPerShare: Number(amountPerShare),
       });
@@ -181,10 +140,10 @@ const AdminPanel = () => {
     }
   };
 
-  // --- GESTION OBLIGATIONS (BONDS) ---
+  // --- NOUVELLES FONCTIONS : OBLIGATIONS ---
   const handleValidateBond = async (id) => {
     try {
-      await api.patch(`/admin/bonds/${id}/validate`);
+      await api.patch(`/api/admin/bonds/${id}/validate`);
       toast.success("Obligation approuvée et mise en ligne !");
       fetchData();
     } catch (err) {
@@ -196,7 +155,7 @@ const AdminPanel = () => {
     if (!window.confirm("Voulez-vous vraiment rejeter cette obligation ?"))
       return;
     try {
-      await api.delete(`/admin/bonds/${id}`);
+      await api.delete(`/api/admin/bonds/${id}`);
       toast.success("Obligation rejetée");
       fetchData();
     } catch (err) {
@@ -204,202 +163,18 @@ const AdminPanel = () => {
     }
   };
 
-  const createBondAdmin = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post("/admin/bonds/create", newBondData);
-      toast.success("Obligation créée avec succès !");
-      setShowCreateModal(null);
-      setNewBondData({
-        titre: "",
-        montantCible: "",
-        tauxInteret: "",
-        dureeMois: "",
-        frequence: "Annuel",
-        garantie: "",
-        description: "",
-      });
-      fetchData();
-    } catch (err) {
-      toast.error("Erreur lors de la création de l'obligation");
-    }
-  };
-
   return (
-    <div className="p-6 mx-auto text-white max-w-7xl relative min-h-screen bg-slate-950">
+    <div className="p-6 mx-auto text-white max-w-7xl">
       <Toaster />
-
-      {/* --- MODAL DE CRÉATION --- */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-black uppercase italic">
-                {showCreateModal === "action"
-                  ? "Nouvelle Action"
-                  : "Nouvelle Obligation"}
-              </h2>
-              <button
-                onClick={() => setShowCreateModal(null)}
-                className="p-2 bg-slate-800 rounded-full hover:bg-red-500 transition-colors"
-              >
-                <FiX />
-              </button>
-            </div>
-
-            {showCreateModal === "action" ? (
-              <form onSubmit={createActionAdmin} className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Nom de l'entreprise"
-                  required
-                  className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl outline-none focus:border-blue-500"
-                  value={newActionData.name}
-                  onChange={(e) =>
-                    setNewActionData({ ...newActionData, name: e.target.value })
-                  }
-                />
-                <input
-                  type="number"
-                  placeholder="Prix par part (F)"
-                  required
-                  className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl outline-none focus:border-blue-500"
-                  value={newActionData.price}
-                  onChange={(e) =>
-                    setNewActionData({
-                      ...newActionData,
-                      price: e.target.value,
-                    })
-                  }
-                />
-                <input
-                  type="number"
-                  placeholder="Quantité totale"
-                  required
-                  className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl outline-none focus:border-blue-500"
-                  value={newActionData.totalQuantity}
-                  onChange={(e) =>
-                    setNewActionData({
-                      ...newActionData,
-                      totalQuantity: e.target.value,
-                    })
-                  }
-                />
-                <textarea
-                  placeholder="Description"
-                  className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl outline-none focus:border-blue-500 h-24"
-                  value={newActionData.description}
-                  onChange={(e) =>
-                    setNewActionData({
-                      ...newActionData,
-                      description: e.target.value,
-                    })
-                  }
-                />
-                <button
-                  type="submit"
-                  className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-black transition-all"
-                >
-                  Créer l'Action
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={createBondAdmin} className="space-y-4">
-                <input
-                  type="text"
-                  placeholder="Titre de l'obligation"
-                  required
-                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
-                  value={newBondData.titre}
-                  onChange={(e) =>
-                    setNewBondData({ ...newBondData, titre: e.target.value })
-                  }
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="number"
-                    placeholder="Cible (F)"
-                    required
-                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
-                    value={newBondData.montantCible}
-                    onChange={(e) =>
-                      setNewBondData({
-                        ...newBondData,
-                        montantCible: e.target.value,
-                      })
-                    }
-                  />
-                  <input
-                    type="number"
-                    placeholder="Intérêt (%)"
-                    required
-                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
-                    value={newBondData.tauxInteret}
-                    onChange={(e) =>
-                      setNewBondData({
-                        ...newBondData,
-                        tauxInteret: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="number"
-                    placeholder="Mois"
-                    required
-                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
-                    value={newBondData.dureeMois}
-                    onChange={(e) =>
-                      setNewBondData({
-                        ...newBondData,
-                        dureeMois: e.target.value,
-                      })
-                    }
-                  />
-                  <select
-                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none"
-                    value={newBondData.frequence}
-                    onChange={(e) =>
-                      setNewBondData({
-                        ...newBondData,
-                        frequence: e.target.value,
-                      })
-                    }
-                  >
-                    <option value="Mensuel">Mensuel</option>
-                    <option value="Trimestriel">Trimestriel</option>
-                    <option value="Annuel">Annuel</option>
-                  </select>
-                </div>
-                <input
-                  type="number"
-                  placeholder="Garantie (F)"
-                  required
-                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl outline-none focus:border-amber-500"
-                  value={newBondData.garantie}
-                  onChange={(e) =>
-                    setNewBondData({ ...newBondData, garantie: e.target.value })
-                  }
-                />
-                <button
-                  type="submit"
-                  className="w-full py-4 bg-amber-600 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-black transition-all"
-                >
-                  Créer l'Obligation
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* --- HEADER --- */}
       <div className="flex flex-col md:flex-row items-center justify-between mb-10 gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full border-2 border-blue-500 bg-slate-800 flex items-center justify-center text-2xl font-black italic">
-            A
-          </div>
+          <img
+            src="/logo.png"
+            alt="Logo"
+            className="w-16 h-16 rounded-full border-2 border-blue-500 shadow-lg object-cover"
+          />
           <div>
             <h1 className="text-3xl italic font-black uppercase leading-none">
               Adb <span className="text-blue-500">Wallet</span>
@@ -409,25 +184,15 @@ const AdminPanel = () => {
             </p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowCreateModal("action")}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600/10 border border-blue-600/30 rounded-xl text-blue-500 text-[10px] font-black uppercase hover:bg-blue-600 hover:text-white transition-all"
-          >
-            <FiPlus /> Action
-          </button>
-          <button
-            onClick={() => setShowCreateModal("bond")}
-            className="flex items-center gap-2 px-4 py-2 bg-amber-600/10 border border-amber-600/30 rounded-xl text-amber-500 text-[10px] font-black uppercase hover:bg-amber-600 hover:text-white transition-all"
-          >
-            <FiPlus /> Obligation
-          </button>
+        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-bold uppercase tracking-widest bg-slate-900/50 px-4 py-2 rounded-full border border-slate-800">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>{" "}
+          Live Auto-Sync (5s)
         </div>
       </div>
 
-      {/* --- STATS --- */}
+      {/* --- STATISTIQUES --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6">
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
           <div className="p-4 bg-blue-500/10 rounded-2xl text-blue-500">
             <FiUsers size={28} />
           </div>
@@ -438,7 +203,7 @@ const AdminPanel = () => {
             <p className="text-3xl font-black italic">{users.length}</p>
           </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6">
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
           <div className="p-4 bg-emerald-500/10 rounded-2xl text-emerald-500">
             <FiCheck size={28} />
           </div>
@@ -451,7 +216,7 @@ const AdminPanel = () => {
             </p>
           </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6">
+        <div className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] flex items-center gap-6 shadow-xl">
           <div className="p-4 bg-amber-500/10 rounded-2xl text-amber-500">
             <FiBriefcase size={28} />
           </div>
@@ -466,41 +231,51 @@ const AdminPanel = () => {
         </div>
       </div>
 
-      {/* --- NAVIGATION --- */}
+      {/* TABS NAVIGATION */}
       <div className="flex flex-wrap gap-4 mb-8">
         <button
           onClick={() => setTab("kyc")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
-            tab === "kyc" ? "bg-blue-600" : "bg-slate-900 text-slate-500"
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
+            tab === "kyc"
+              ? "bg-blue-600"
+              : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
           <FiUsers /> KYC (
           {users.filter((u) => u.kycStatus === "en_attente").length})
         </button>
+
         <button
           onClick={() => setTab("actions")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
-            tab === "actions" ? "bg-blue-600" : "bg-slate-900 text-slate-500"
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
+            tab === "actions"
+              ? "bg-blue-600"
+              : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
           <FiPackage /> Actifs (
           {actions.filter((a) => a.status === "en_attente").length})
         </button>
+
+        {/* NOUVELLE TAB : OBLIGATIONS */}
         <button
           onClick={() => setTab("bonds")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
-            tab === "bonds" ? "bg-amber-600" : "bg-slate-900 text-slate-500"
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
+            tab === "bonds"
+              ? "bg-amber-600"
+              : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
           <FiBriefcase /> Obligations (
           {bonds.filter((b) => b.status === "en_attente").length})
         </button>
+
         <button
           onClick={() => setTab("deposits")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
             tab === "deposits"
               ? "bg-emerald-600"
-              : "bg-slate-900 text-slate-500"
+              : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
           <FiDollarSign /> Dépôts (
@@ -511,10 +286,13 @@ const AdminPanel = () => {
           }
           )
         </button>
+
         <button
           onClick={() => setTab("withdrawals")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
-            tab === "withdrawals" ? "bg-red-600" : "bg-slate-900 text-slate-500"
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
+            tab === "withdrawals"
+              ? "bg-red-600"
+              : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
           <FiArrowUpRight /> Retraits (
@@ -525,23 +303,25 @@ const AdminPanel = () => {
           }
           )
         </button>
+
         <button
           onClick={() => setTab("dividends")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] transition-all flex items-center gap-2 ${
+          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
             tab === "dividends"
               ? "bg-purple-600"
-              : "bg-slate-900 text-slate-500"
+              : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
           <FiPieChart /> Dividendes
         </button>
       </div>
 
-      {/* --- SECTIONS DE CONTENU --- */}
+      {/* --- SECTIONS DE CONTENU (EXISTANTES + NOUVELLE) --- */}
+
       {tab === "kyc" && (
-        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden">
+        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
           <table className="w-full text-left">
-            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase">
+            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase tracking-widest">
               <tr>
                 <th className="p-6">Utilisateur</th>
                 <th className="p-6">Document</th>
@@ -551,7 +331,10 @@ const AdminPanel = () => {
             </thead>
             <tbody className="divide-y divide-slate-800">
               {users.map((u) => (
-                <tr key={u._id} className="hover:bg-slate-800/50">
+                <tr
+                  key={u._id}
+                  className="transition-colors hover:bg-slate-800/50"
+                >
                   <td className="p-6 font-bold">
                     {u.name} <br />
                     <span className="text-[10px] text-slate-500">
@@ -583,7 +366,7 @@ const AdminPanel = () => {
                       <>
                         <button
                           onClick={() => handleValidateKYC(u._id, "valide")}
-                          className="p-3 bg-emerald-600 rounded-xl"
+                          className="p-3 bg-emerald-600 rounded-xl hover:bg-emerald-500"
                         >
                           <FiCheck />
                         </button>
@@ -591,7 +374,7 @@ const AdminPanel = () => {
                           onClick={() =>
                             handleValidateKYC(u._id, "non_verifie")
                           }
-                          className="p-3 bg-red-600 rounded-xl"
+                          className="p-3 bg-red-600 rounded-xl hover:bg-red-500"
                         >
                           <FiX />
                         </button>
@@ -610,7 +393,7 @@ const AdminPanel = () => {
           {actions.map((a) => (
             <div
               key={a._id}
-              className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800"
+              className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl"
             >
               <div className="flex items-start justify-between mb-4">
                 <h3 className="text-xl italic font-black uppercase">
@@ -629,13 +412,13 @@ const AdminPanel = () => {
               <p className="mb-6 text-xs text-slate-500">{a.description}</p>
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="p-4 bg-slate-950 rounded-2xl">
-                  <p className="text-[8px] text-slate-500 uppercase">
+                  <p className="text-[8px] text-slate-500 uppercase font-black">
                     Prix / Part
                   </p>
                   <p className="font-bold text-blue-400">{a.price} F</p>
                 </div>
                 <div className="p-4 bg-slate-950 rounded-2xl">
-                  <p className="text-[8px] text-slate-500 uppercase">
+                  <p className="text-[8px] text-slate-500 uppercase font-black">
                     Quantité
                   </p>
                   <p className="font-bold">{a.totalQuantity} unités</p>
@@ -654,25 +437,26 @@ const AdminPanel = () => {
         </div>
       )}
 
+      {/* SECTION OBLIGATIONS (NOUVELLE) */}
       {tab === "bonds" && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {bonds.length === 0 ? (
-            <p className="text-slate-500 italic p-10 bg-slate-900 rounded-[2rem] text-center col-span-2">
+            <p className="text-slate-500 italic p-10 bg-slate-900 rounded-[2rem] border border-slate-800 text-center col-span-2">
               Aucune obligation trouvée.
             </p>
           ) : (
             bonds.map((b) => (
               <div
                 key={b._id}
-                className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800"
+                className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl relative overflow-hidden"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div>
                     <h3 className="text-xl italic font-black uppercase text-amber-500">
                       {b.titre}
                     </h3>
-                    <p className="text-[10px] text-slate-400 uppercase">
-                      Émis par: {b.actionnaireId?.name || "ADMIN"}
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">
+                      Émis par: {b.actionnaireId?.name || "Actionnaire"}
                     </p>
                   </div>
                   <span
@@ -685,35 +469,54 @@ const AdminPanel = () => {
                     {b.status}
                   </span>
                 </div>
+
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="p-3 bg-slate-950 rounded-xl">
-                    <p className="text-[8px] uppercase">Rendement</p>
+                    <p className="text-[8px] text-slate-500 uppercase font-black">
+                      Rendement
+                    </p>
                     <p className="font-bold text-emerald-400">
                       {b.tauxInteret}%
                     </p>
                   </div>
                   <div className="p-3 bg-slate-950 rounded-xl">
-                    <p className="text-[8px] uppercase">Durée</p>
-                    <p className="font-bold">{b.dureeMois} m</p>
+                    <p className="text-[8px] text-slate-500 uppercase font-black">
+                      Durée
+                    </p>
+                    <p className="font-bold">{b.dureeMois} mois</p>
                   </div>
                   <div className="p-3 bg-slate-950 rounded-xl">
-                    <p className="text-[8px] uppercase">Fréq.</p>
-                    <p className="font-bold text-[10px]">{b.frequence}</p>
+                    <p className="text-[8px] text-slate-500 uppercase font-black">
+                      Fréquence
+                    </p>
+                    <p className="font-bold text-xs">{b.frequence}</p>
                   </div>
                 </div>
+
+                <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl mb-6">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
+                      <FiShield className="text-blue-500" /> Garantie bloquée
+                    </span>
+                    <span className="font-black text-blue-400">
+                      {b.garantie?.toLocaleString()} F
+                    </span>
+                  </div>
+                </div>
+
                 {b.status === "en_attente" && (
                   <div className="flex gap-3">
                     <button
                       onClick={() => handleValidateBond(b._id)}
-                      className="flex-1 bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] hover:bg-white hover:text-amber-600 transition-all"
+                      className="flex-1 bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 transition-all"
                     >
-                      Valider
+                      Valider l'obligation
                     </button>
                     <button
                       onClick={() => handleRejectBond(b._id)}
                       className="px-6 bg-red-600/20 text-red-500 rounded-2xl hover:bg-red-600 hover:text-white transition-all"
                     >
-                      <FiTrash2 />
+                      <FiTrash2 size={18} />
                     </button>
                   </div>
                 )}
@@ -724,9 +527,9 @@ const AdminPanel = () => {
       )}
 
       {tab === "deposits" && (
-        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden">
+        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
           <table className="w-full text-left">
-            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase">
+            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase tracking-widest">
               <tr>
                 <th className="p-6">Utilisateur</th>
                 <th className="p-6">Montant</th>
@@ -738,10 +541,12 @@ const AdminPanel = () => {
               {transactions
                 .filter((t) => t.type === "depot")
                 .map((t) => (
-                  <tr key={t._id} className="hover:bg-slate-800/50">
+                  <tr
+                    key={t._id}
+                    className="transition-colors hover:bg-slate-800/50"
+                  >
                     <td className="p-6 font-bold">
-                      {t.userId?.name || "Inconnu"}
-                      <br />
+                      {t.userId?.name || "Inconnu"} <br />
                       <span className="text-[10px] text-slate-500">
                         {t.userId?.email}
                       </span>
@@ -749,22 +554,24 @@ const AdminPanel = () => {
                     <td className="p-6 font-black text-emerald-500">
                       {t.amount.toLocaleString()} F
                     </td>
-                    <td className="p-6 text-[9px] font-black uppercase italic">
-                      <span
-                        className={
-                          t.status === "en_attente"
-                            ? "text-orange-500"
-                            : "text-emerald-500"
-                        }
-                      >
-                        {t.status}
-                      </span>
+                    <td className="p-6 text-[9px] font-black uppercase italic flex items-center gap-2">
+                      {t.status === "en_attente" ? (
+                        <>
+                          <FiClock className="text-orange-500" />
+                          <span className="text-orange-500">{t.status}</span>
+                        </>
+                      ) : (
+                        <>
+                          <FiCheck className="text-emerald-500" />
+                          <span className="text-emerald-500">{t.status}</span>
+                        </>
+                      )}
                     </td>
                     <td className="p-6 text-right">
                       {t.status === "en_attente" && (
                         <button
                           onClick={() => handleValidateDeposit(t._id)}
-                          className="p-3 bg-emerald-600 rounded-xl"
+                          className="p-3 shadow-lg bg-emerald-600 rounded-xl hover:bg-emerald-500"
                         >
                           <FiCheck />
                         </button>
@@ -778,46 +585,69 @@ const AdminPanel = () => {
       )}
 
       {tab === "withdrawals" && (
-        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden">
+        <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
           <table className="w-full text-left">
-            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase">
+            <thead className="bg-slate-950 text-slate-500 text-[10px] font-black uppercase tracking-widest">
               <tr>
                 <th className="p-6">Utilisateur</th>
-                <th className="p-6">Montant</th>
-                <th className="p-6 text-blue-400">Numéro</th>
+                <th className="p-6">Montant Demandé</th>
+                <th className="p-6 text-blue-400">Numéro de Paiement</th>
                 <th className="p-6">Statut</th>
-                <th className="p-6 text-right">Actions</th>
+                <th className="p-6 text-right">Actions Admin</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
               {transactions
                 .filter((t) => t.type === "retrait")
                 .map((t) => (
-                  <tr key={t._id} className="hover:bg-slate-800/50">
-                    <td className="p-6 font-bold">{t.userId?.name}</td>
+                  <tr
+                    key={t._id}
+                    className="transition-colors hover:bg-slate-800/50"
+                  >
+                    <td className="p-6 font-bold">
+                      {t.userId?.name || "Inconnu"} <br />
+                      <span className="text-[10px] text-slate-500">
+                        {t.userId?.email}
+                      </span>
+                    </td>
                     <td className="p-6 font-black text-red-500">
-                      {t.amount.toLocaleString()} F
+                      -{t.amount.toLocaleString()} F
                     </td>
-                    <td className="p-6 font-mono text-blue-400">
-                      {t.paymentNumber || "N/A"}
+                    <td className="p-6">
+                      <div className="flex items-center gap-2 px-3 py-2 border bg-black/40 border-slate-800 rounded-xl w-fit">
+                        <FiPhone className="text-blue-500" size={14} />
+                        <span className="text-xs font-black tracking-wider text-white">
+                          {t.recipientPhone || "N/A"}
+                        </span>
+                      </div>
                     </td>
-                    <td className="p-6 uppercase text-[9px] font-black italic">
-                      {t.status}
+                    <td className="p-6 text-[9px] font-black uppercase italic">
+                      <span
+                        className={`px-3 py-1 rounded-full ${
+                          t.status === "en_attente"
+                            ? "bg-orange-500/10 text-orange-500"
+                            : t.status === "valide"
+                            ? "bg-emerald-500/10 text-emerald-500"
+                            : "bg-red-500/10 text-red-500"
+                        }`}
+                      >
+                        {t.status}
+                      </span>
                     </td>
-                    <td className="p-6 text-right space-x-2">
+                    <td className="p-6 space-x-2 text-right">
                       {t.status === "en_attente" && (
                         <>
                           <button
                             onClick={() => handleValidateWithdrawal(t._id)}
-                            className="p-3 bg-emerald-600 rounded-xl"
+                            className="p-3 shadow-lg bg-emerald-600 hover:bg-white hover:text-emerald-600 rounded-xl"
                           >
                             <FiCheck />
                           </button>
                           <button
                             onClick={() => handleRejectWithdrawal(t._id)}
-                            className="p-3 bg-red-600 rounded-xl"
+                            className="p-3 bg-red-600 shadow-lg hover:bg-white hover:text-red-600 rounded-xl"
                           >
-                            <FiX />
+                            <FiTrash2 />
                           </button>
                         </>
                       )}
@@ -830,59 +660,68 @@ const AdminPanel = () => {
       )}
 
       {tab === "dividends" && (
-        <div className="bg-slate-900 p-10 rounded-[2.5rem] border border-slate-800 max-w-2xl mx-auto shadow-2xl">
+        <div className="bg-slate-900 p-10 rounded-[2.5rem] border border-slate-800 shadow-2xl max-w-3xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
-            <div className="p-4 bg-purple-500/10 rounded-2xl text-purple-500">
+            <div className="p-4 text-purple-500 bg-purple-500/10 rounded-2xl">
               <FiPieChart size={32} />
             </div>
-            <h2 className="text-2xl font-black italic uppercase">
-              Distribuer <span className="text-purple-500">Dividendes</span>
-            </h2>
+            <div>
+              <h2 className="text-2xl italic font-black text-white uppercase">
+                Distribuer des Dividendes
+              </h2>
+              <p className="text-xs font-bold tracking-wider uppercase text-slate-500">
+                Rémunérer les détenteurs d'actifs
+              </p>
+            </div>
           </div>
           <form onSubmit={handleDistributeDividends} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-slate-500">
-                Sélectionner l'Actif
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-2">
+                Sélectionner l'entreprise
               </label>
               <select
-                className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none focus:border-purple-500"
                 value={selectedAction}
                 onChange={(e) => setSelectedAction(e.target.value)}
+                className="w-full p-5 text-sm font-bold text-white transition-all border outline-none bg-slate-950 border-slate-800 rounded-2xl focus:border-purple-500"
               >
-                <option value="">-- Choisir une entreprise --</option>
+                <option value="">Choisir un actif valide...</option>
                 {actions
                   .filter((a) => a.status === "valide")
-                  .map((a) => (
-                    <option key={a._id} value={a._id}>
-                      {a.name}
+                  .map((action) => (
+                    <option key={action._id} value={action._id}>
+                      {action.name} ({action.price} F / part)
                     </option>
                   ))}
               </select>
             </div>
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-slate-500">
-                Montant par part (F)
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-2">
+                Montant à verser par part possédée
               </label>
-              <input
-                type="number"
-                placeholder="Ex: 500"
-                className="w-full p-4 bg-slate-950 border border-slate-800 rounded-2xl text-white outline-none focus:border-purple-500"
-                value={amountPerShare}
-                onChange={(e) => setAmountPerShare(e.target.value)}
-              />
+              <div className="relative">
+                <FiDollarSign className="absolute text-purple-500 -translate-y-1/2 left-5 top-1/2" />
+                <input
+                  type="number"
+                  placeholder="Exemple: 50"
+                  value={amountPerShare}
+                  onChange={(e) => setAmountPerShare(e.target.value)}
+                  className="w-full p-5 pl-12 text-sm font-bold text-white transition-all border outline-none bg-slate-950 border-slate-800 rounded-2xl focus:border-purple-500"
+                />
+              </div>
             </div>
             <button
               type="submit"
               disabled={isProcessing}
-              className="w-full py-5 bg-purple-600 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-white hover:text-black transition-all flex items-center justify-center gap-2"
+              className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all shadow-xl ${
+                isProcessing
+                  ? "bg-slate-800 text-slate-600"
+                  : "bg-purple-600 hover:bg-white hover:text-purple-600"
+              }`}
             >
-              {isProcessing ? (
-                "Traitement..."
-              ) : (
-                <>
-                  <FiSend /> Lancer la distribution
-                </>
-              )}
+              <FiSend />{" "}
+              {isProcessing
+                ? "Traitement en cours..."
+                : "Lancer la distribution"}
             </button>
           </form>
         </div>
