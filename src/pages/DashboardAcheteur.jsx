@@ -22,6 +22,7 @@ const DashboardAcheteur = () => {
   const [activeTab, setActiveTab] = useState("actions");
   const [kycDoc, setKycDoc] = useState("");
   const [buyQty, setBuyQty] = useState({});
+  const [bondInvestAmount, setBondInvestAmount] = useState({}); // NOUVEAU : État pour le montant des obligations
   const [loading, setLoading] = useState(true);
 
   // --- ÉTATS POUR LE SUPPORT RÉEL ---
@@ -113,13 +114,28 @@ const DashboardAcheteur = () => {
     }
   };
 
-  const handleSubscribeBond = async (bondId, price) => {
-    if (!user || user.balance < price) {
-      return toast.error("Solde insuffisant pour cette obligation.");
+  // --- CORRECTION : handleSubscribeBond envoie maintenant le montant ---
+  const handleSubscribeBond = async (bondId) => {
+    const amount = parseFloat(bondInvestAmount[bondId]);
+
+    if (!amount || amount <= 0) {
+      return toast.error("Veuillez saisir un montant valide à investir.");
     }
+
+    if (!user || user.balance < amount) {
+      return toast.error(
+        `Solde insuffisant pour investir ${amount.toLocaleString()} F.`
+      );
+    }
+
     try {
-      await api.post("/transactions/subscribe-bond", { userId, bondId });
-      toast.success("Souscription réussie !");
+      const res = await api.post("/transactions/subscribe-bond", {
+        userId,
+        bondId,
+        amount: amount,
+      });
+      toast.success(res.data.message || "Souscription réussie !");
+      setBondInvestAmount({ ...bondInvestAmount, [bondId]: "" }); // Reset input
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.error || "Erreur de souscription");
@@ -453,7 +469,7 @@ const DashboardAcheteur = () => {
                       {bond.titre}
                     </h3>
                     <p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest">
-                      {bond.emetteur}
+                      {bond.description?.substring(0, 30)}...
                     </p>
                   </div>
                   <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-1.5 rounded-xl border border-emerald-500/20">
@@ -471,17 +487,37 @@ const DashboardAcheteur = () => {
                   <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
                     <FiLayers className="text-blue-500 mb-1" size={14} />
                     <p className="text-[8px] text-slate-500 uppercase font-black">
-                      Prix
+                      Cible
                     </p>
                     <p className="text-xs font-black">
-                      {bond.prixUnitaire?.toLocaleString()} F
+                      {bond.montantCible?.toLocaleString()} F
                     </p>
                   </div>
                 </div>
+
+                {/* NOUVEL INPUT POUR LE MONTANT D'INVESTISSEMENT */}
+                {user?.kycStatus === "valide" && (
+                  <div className="mb-4 p-3 border bg-slate-950 rounded-2xl border-slate-800">
+                    <label className="text-[8px] font-black uppercase text-slate-500 block mb-1">
+                      Montant à investir
+                    </label>
+                    <input
+                      type="number"
+                      placeholder="Ex: 10000"
+                      value={bondInvestAmount[bond._id] || ""}
+                      onChange={(e) =>
+                        setBondInvestAmount({
+                          ...bondInvestAmount,
+                          [bond._id]: e.target.value,
+                        })
+                      }
+                      className="w-full bg-transparent text-sm font-black text-amber-500 outline-none"
+                    />
+                  </div>
+                )}
+
                 <button
-                  onClick={() =>
-                    handleSubscribeBond(bond._id, bond.prixUnitaire)
-                  }
+                  onClick={() => handleSubscribeBond(bond._id)}
                   disabled={user?.kycStatus !== "valide"}
                   className="w-full bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 transition-all disabled:opacity-30"
                 >
