@@ -11,6 +11,7 @@ import {
   FiMessageSquare,
   FiSend,
   FiPhone,
+  FiFileText, // Icône pour les obligations
 } from "react-icons/fi";
 import {
   AreaChart,
@@ -28,11 +29,13 @@ const DashboardActionnaire = () => {
   const [stats, setStats] = useState({
     nombreVentes: 0,
     actionsCount: 0,
+    obligationsCount: 0,
   });
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawPhone, setWithdrawPhone] = useState("");
   const [transactions, setTransactions] = useState([]);
   const [mesActions, setMesActions] = useState([]);
+  const [mesObligations, setMesObligations] = useState([]); // Nouvel état
   const [loading, setLoading] = useState(true);
 
   const [editingId, setEditingId] = useState(null);
@@ -47,17 +50,19 @@ const DashboardActionnaire = () => {
   const fetchData = useCallback(async () => {
     if (!userId) return;
     try {
-      // Note: Suppression des /api/ si ton instance axios (api.js) a déjà baseURL: .../api
-      const [userRes, transRes, actionsRes, messagesRes] = await Promise.all([
-        api.get(`/user/${userId}`),
-        api.get(`/transactions/user/${userId}`),
-        api.get(`/actions`),
-        api.get(`/messages/owner/${userId}`),
-      ]);
+      const [userRes, transRes, actionsRes, messagesRes, obligationsRes] =
+        await Promise.all([
+          api.get(`/user/${userId}`),
+          api.get(`/transactions/user/${userId}`),
+          api.get(`/actions`),
+          api.get(`/messages/owner/${userId}`),
+          api.get(`/obligations/owner/${userId}`), // Route supposée pour vos obligations
+        ]);
 
       setBalance(userRes.data.balance || 0);
       setTransactions(transRes.data || []);
       setMessages(messagesRes.data || []);
+      setMesObligations(obligationsRes.data || []);
 
       const ventes = (transRes.data || []).filter((t) => t.type === "vente");
       const filteredActions = (actionsRes.data || []).filter(
@@ -68,6 +73,7 @@ const DashboardActionnaire = () => {
       setStats({
         nombreVentes: ventes.length,
         actionsCount: filteredActions.length,
+        obligationsCount: (obligationsRes.data || []).length,
       });
     } catch (err) {
       console.error("Erreur Dashboard:", err);
@@ -104,7 +110,9 @@ const DashboardActionnaire = () => {
     const gains = transactions
       .filter(
         (t) =>
-          (t.type === "vente" || t.type === "dividende") &&
+          (t.type === "vente" ||
+            t.type === "dividende" ||
+            t.type === "coupon") &&
           t.status === "valide"
       )
       .sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -161,7 +169,7 @@ const DashboardActionnaire = () => {
     }
   };
 
-  if (loading && !mesActions.length) {
+  if (loading && !mesActions.length && !mesObligations.length) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
         <div className="text-blue-500 font-black animate-pulse tracking-[0.3em] uppercase">
@@ -239,12 +247,12 @@ const DashboardActionnaire = () => {
           </div>
         </div>
 
-        {/* --- GRID MES ACTIFS --- */}
+        {/* --- GRID MES ACTIFS (ACTIONS) --- */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-8">
             <FiPackage className="text-blue-500" size={24} />
             <h2 className="text-xl italic font-black uppercase">
-              Actifs sous Gestion
+              Actifs sous Gestion (Actions)
             </h2>
           </div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -319,6 +327,72 @@ const DashboardActionnaire = () => {
                 )}
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* --- SECTION OBLIGATIONS (NOUVEAU) --- */}
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-8">
+            <FiFileText className="text-emerald-500" size={24} />
+            <h2 className="text-xl italic font-black uppercase">
+              Obligations Émises
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            {mesObligations.length === 0 ? (
+              <div className="col-span-2 p-10 border border-dashed border-slate-800 rounded-[2rem] text-center text-slate-600 text-xs italic">
+                Aucune obligation active détectée.
+              </div>
+            ) : (
+              mesObligations.map((obli) => (
+                <div
+                  key={obli._id}
+                  className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] border-l-4 border-l-emerald-500 shadow-xl"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-lg font-black uppercase tracking-tighter">
+                        {obli.name}
+                      </h3>
+                      <span className="inline-block mt-1 text-[8px] bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded-full font-black uppercase tracking-widest">
+                        Taux Annuel: {obli.interestRate}%
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[8px] text-slate-500 font-black uppercase">
+                        Échéance
+                      </p>
+                      <p className="text-xs font-black">
+                        {new Date(obli.maturityDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mt-6">
+                    <div className="bg-black/40 p-3 rounded-2xl border border-slate-800/50">
+                      <p className="text-[8px] text-slate-500 uppercase font-black mb-1">
+                        Capital
+                      </p>
+                      <p className="text-lg font-black text-white">
+                        {obli.principalAmount?.toLocaleString()} F
+                      </p>
+                    </div>
+                    <div className="bg-black/40 p-3 rounded-2xl border border-slate-800/50">
+                      <p className="text-[8px] text-slate-500 uppercase font-black mb-1">
+                        Intérêts dûs
+                      </p>
+                      <p className="text-lg font-black text-emerald-500">
+                        {(
+                          (obli.principalAmount * obli.interestRate) /
+                          100
+                        ).toLocaleString()}{" "}
+                        F
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
@@ -406,12 +480,14 @@ const DashboardActionnaire = () => {
             </div>
             <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] flex items-center gap-6">
               <div className="p-4 bg-purple-500/10 text-purple-500 rounded-2xl">
-                <FiTrendingUp size={24} />
+                <FiFileText size={24} />
               </div>
               <div>
-                <h2 className="text-2xl font-black">{stats.actionsCount}</h2>
+                <h2 className="text-2xl font-black">
+                  {stats.obligationsCount}
+                </h2>
                 <p className="text-[9px] font-black uppercase text-slate-500">
-                  Actifs en ligne
+                  Obligations Actives
                 </p>
               </div>
             </div>
@@ -476,12 +552,12 @@ const DashboardActionnaire = () => {
                   <div className="flex items-center gap-4">
                     <div
                       className={`p-3 rounded-2xl ${
-                        t.type === "vente"
+                        t.type === "vente" || t.type === "coupon"
                           ? "bg-emerald-500/10 text-emerald-500"
                           : "bg-orange-500/10 text-orange-500"
                       }`}
                     >
-                      {t.type === "vente" ? (
+                      {t.type === "vente" || t.type === "coupon" ? (
                         <FiTrendingUp size={18} />
                       ) : (
                         <FiArrowUpRight size={18} />
@@ -489,7 +565,11 @@ const DashboardActionnaire = () => {
                     </div>
                     <div>
                       <p className="text-xs font-black uppercase">
-                        {t.type === "vente" ? "Revenu Vente" : "Retrait Cash"}
+                        {t.type === "vente"
+                          ? "Revenu Vente"
+                          : t.type === "coupon"
+                          ? "Coupon Oblig."
+                          : "Retrait Cash"}
                       </p>
                       <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">
                         {new Date(t.date).toLocaleString()}
@@ -499,12 +579,12 @@ const DashboardActionnaire = () => {
                   <div className="text-right">
                     <p
                       className={`font-black text-lg ${
-                        t.type === "vente"
+                        t.type === "vente" || t.type === "coupon"
                           ? "text-emerald-400"
                           : "text-orange-400"
                       }`}
                     >
-                      {t.type === "vente" ? "+" : "-"}{" "}
+                      {t.type === "vente" || t.type === "coupon" ? "+" : "-"}{" "}
                       {t.amount.toLocaleString()} F
                     </p>
                     <span
