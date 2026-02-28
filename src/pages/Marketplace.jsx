@@ -8,9 +8,11 @@ const MarketPlace = ({ onBuy }) => {
   useEffect(() => {
     const fetchActions = async () => {
       try {
-        const res = await api.get("/api/actions");
+        // CORRECTION : On utilise "/actions" car "/api" est déjà dans la baseURL
+        const res = await api.get("/actions");
         setActions(res.data);
       } catch (err) {
+        console.error("Erreur marketplace:", err);
         toast.error("Erreur lors de la récupération du marché");
       }
     };
@@ -38,6 +40,11 @@ const MarketPlace = ({ onBuy }) => {
           </button>
         </div>
       ))}
+      {actions.length === 0 && (
+        <p className="text-slate-400 italic col-span-2 text-center py-10">
+          Aucun actif disponible sur le marché pour le moment.
+        </p>
+      )}
     </div>
   );
 };

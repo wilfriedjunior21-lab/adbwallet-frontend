@@ -15,7 +15,7 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api.post("/api/auth/register", formData);
+      await api.post("/auth/register", formData);
       toast.success("Compte créé ! Connectez-vous.");
       setTimeout(() => navigate("/login"), 1500);
     } catch (err) {

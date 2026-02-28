@@ -13,8 +13,7 @@ import {
   FiArrowUpRight,
   FiTrash2,
   FiPhone,
-  FiBarChart2,
-  FiBriefcase, // Nouvel icône pour les obligations
+  FiBriefcase,
 } from "react-icons/fi";
 import { toast, Toaster } from "react-hot-toast";
 
@@ -22,7 +21,7 @@ const AdminPanel = () => {
   const [users, setUsers] = useState([]);
   const [actions, setActions] = useState([]);
   const [transactions, setTransactions] = useState([]);
-  const [bonds, setBonds] = useState([]); // État pour les obligations
+  const [bonds, setBonds] = useState([]);
   const [tab, setTab] = useState("kyc");
 
   const [selectedAction, setSelectedAction] = useState("");
@@ -31,11 +30,12 @@ const AdminPanel = () => {
 
   const fetchData = useCallback(async (isAutoRefresh = false) => {
     try {
+      // CORRECTION : On enlève /api car il est déjà dans la baseURL de api.js
       const [uRes, aRes, tRes, bRes] = await Promise.all([
-        api.get("/api/admin/users"),
-        api.get("/api/admin/actions"),
-        api.get("/api/admin/transactions"),
-        api.get("/api/admin/bonds"), // Route API pour les obligations
+        api.get("/admin/users"),
+        api.get("/admin/actions"),
+        api.get("/admin/transactions"),
+        api.get("/admin/bonds"),
       ]);
       setUsers(uRes.data);
       setActions(aRes.data);
@@ -57,10 +57,10 @@ const AdminPanel = () => {
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
-  // --- FONCTIONS EXISTANTES (PRÉSERVÉES) ---
   const handleValidateKYC = async (id, status) => {
     try {
-      await api.patch(`/api/admin/kyc/${id}`, { status });
+      // CORRECTION : /admin au lieu de /api/admin
+      await api.patch(`/admin/kyc/${id}`, { status });
       toast.success(`Utilisateur mis à jour : ${status}`);
       fetchData();
     } catch (err) {
@@ -70,7 +70,7 @@ const AdminPanel = () => {
 
   const handleValidateAction = async (id) => {
     try {
-      await api.patch(`/api/admin/actions/${id}/validate`);
+      await api.patch(`/admin/actions/${id}/validate`);
       toast.success("Action publiée sur le marché !");
       fetchData();
     } catch (err) {
@@ -80,7 +80,7 @@ const AdminPanel = () => {
 
   const handleValidateDeposit = async (id) => {
     try {
-      await api.patch(`/api/admin/transactions/${id}/validate`);
+      await api.patch(`/admin/transactions/${id}/validate`);
       toast.success("Dépôt validé et compte crédité !");
       fetchData();
     } catch (err) {
@@ -96,7 +96,7 @@ const AdminPanel = () => {
     )
       return;
     try {
-      await api.patch(`/api/admin/transactions/${id}/validate`);
+      await api.patch(`/admin/transactions/${id}/validate`);
       toast.success("Retrait marqué comme terminé !");
       fetchData();
     } catch (err) {
@@ -110,7 +110,7 @@ const AdminPanel = () => {
     );
     if (reason === null) return;
     try {
-      await api.patch(`/api/admin/transactions/${id}/reject`, { reason });
+      await api.patch(`/admin/transactions/${id}/reject`, { reason });
       toast.success("Retrait refusé. L'utilisateur a été recrédité.");
       fetchData();
     } catch (err) {
@@ -126,7 +126,7 @@ const AdminPanel = () => {
     if (!confirmDist) return;
     setIsProcessing(true);
     try {
-      const res = await api.post("/api/admin/distribute-dividends", {
+      const res = await api.post("/admin/distribute-dividends", {
         actionId: selectedAction,
         amountPerShare: Number(amountPerShare),
       });
@@ -140,10 +140,9 @@ const AdminPanel = () => {
     }
   };
 
-  // --- NOUVELLES FONCTIONS : OBLIGATIONS ---
   const handleValidateBond = async (id) => {
     try {
-      await api.patch(`/api/admin/bonds/${id}/validate`);
+      await api.patch(`/admin/bonds/${id}/validate`);
       toast.success("Obligation approuvée et mise en ligne !");
       fetchData();
     } catch (err) {
@@ -155,7 +154,7 @@ const AdminPanel = () => {
     if (!window.confirm("Voulez-vous vraiment rejeter cette obligation ?"))
       return;
     try {
-      await api.delete(`/api/admin/bonds/${id}`);
+      await api.delete(`/admin/bonds/${id}`);
       toast.success("Obligation rejetée");
       fetchData();
     } catch (err) {
@@ -257,7 +256,6 @@ const AdminPanel = () => {
           {actions.filter((a) => a.status === "en_attente").length})
         </button>
 
-        {/* NOUVELLE TAB : OBLIGATIONS */}
         <button
           onClick={() => setTab("bonds")}
           className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center gap-2 ${
@@ -316,7 +314,7 @@ const AdminPanel = () => {
         </button>
       </div>
 
-      {/* --- SECTIONS DE CONTENU (EXISTANTES + NOUVELLE) --- */}
+      {/* --- SECTIONS DE CONTENU --- */}
 
       {tab === "kyc" && (
         <div className="bg-slate-900 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
@@ -437,7 +435,6 @@ const AdminPanel = () => {
         </div>
       )}
 
-      {/* SECTION OBLIGATIONS (NOUVELLE) */}
       {tab === "bonds" && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {bonds.length === 0 ? (
@@ -469,7 +466,6 @@ const AdminPanel = () => {
                     {b.status}
                   </span>
                 </div>
-
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="p-3 bg-slate-950 rounded-xl">
                     <p className="text-[8px] text-slate-500 uppercase font-black">
@@ -492,7 +488,6 @@ const AdminPanel = () => {
                     <p className="font-bold text-xs">{b.frequence}</p>
                   </div>
                 </div>
-
                 <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl mb-6">
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
@@ -503,7 +498,6 @@ const AdminPanel = () => {
                     </span>
                   </div>
                 </div>
-
                 {b.status === "en_attente" && (
                   <div className="flex gap-3">
                     <button
@@ -621,9 +615,9 @@ const AdminPanel = () => {
                         </span>
                       </div>
                     </td>
-                    <td className="p-6 text-[9px] font-black uppercase italic">
+                    <td className="p-6">
                       <span
-                        className={`px-3 py-1 rounded-full ${
+                        className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
                           t.status === "en_attente"
                             ? "bg-orange-500/10 text-orange-500"
                             : t.status === "valide"

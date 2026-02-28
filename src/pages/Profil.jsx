@@ -20,7 +20,7 @@ const Profil = () => {
     const fetchUser = async () => {
       try {
         if (!userId) return;
-        const res = await api.get(`/api/user/${userId}`);
+        const res = await api.get(`/user/${userId}`);
         setUser(res.data);
       } catch (err) {
         toast.error("Erreur de chargement");
@@ -34,7 +34,7 @@ const Profil = () => {
   const handleSubmitKYC = async (e) => {
     e.preventDefault();
     try {
-      await api.post("/api/user/submit-kyc", { userId, documentUrl: docUrl });
+      await api.post("/user/submit-kyc", { userId, documentUrl: docUrl });
       toast.success("Demande envoyée !");
       setUser({ ...user, kycStatus: "en_attente" });
     } catch (err) {

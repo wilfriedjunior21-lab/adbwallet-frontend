@@ -9,7 +9,7 @@ const Profile = () => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await api.get(`/api/user/${userId}`);
+        const res = await api.get(`/user/${userId}`);
         setUser(res.data);
       } catch (err) {
         console.error(err);

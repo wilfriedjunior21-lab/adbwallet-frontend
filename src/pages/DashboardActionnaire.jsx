@@ -2,19 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../api";
 import NavbarActionnaire from "./NavbarActionnaire";
 import {
-  FiDollarSign,
   FiTrendingUp,
   FiArrowUpRight,
   FiActivity,
-  FiClock,
-  FiCheckCircle,
   FiEdit2,
   FiSave,
-  FiX,
   FiPackage,
   FiMessageSquare,
   FiSend,
-  FiAlertCircle,
   FiPhone,
 } from "react-icons/fi";
 import {
@@ -35,7 +30,7 @@ const DashboardActionnaire = () => {
     actionsCount: 0,
   });
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [withdrawPhone, setWithdrawPhone] = useState(""); // NOUVEAU : État pour le numéro
+  const [withdrawPhone, setWithdrawPhone] = useState("");
   const [transactions, setTransactions] = useState([]);
   const [mesActions, setMesActions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,22 +43,24 @@ const DashboardActionnaire = () => {
 
   const userId = localStorage.getItem("userId");
 
+  // --- CHARGEMENT DES DONNÉES ---
   const fetchData = useCallback(async () => {
     if (!userId) return;
     try {
+      // Note: Suppression des /api/ si ton instance axios (api.js) a déjà baseURL: .../api
       const [userRes, transRes, actionsRes, messagesRes] = await Promise.all([
-        api.get(`/api/user/${userId}`),
-        api.get(`/api/transactions/user/${userId}`),
-        api.get(`/api/actions`),
-        api.get(`/api/messages/owner/${userId}`),
+        api.get(`/user/${userId}`),
+        api.get(`/transactions/user/${userId}`),
+        api.get(`/actions`),
+        api.get(`/messages/owner/${userId}`),
       ]);
 
       setBalance(userRes.data.balance || 0);
-      setTransactions(transRes.data);
-      setMessages(messagesRes.data);
+      setTransactions(transRes.data || []);
+      setMessages(messagesRes.data || []);
 
-      const ventes = transRes.data.filter((t) => t.type === "vente");
-      const filteredActions = actionsRes.data.filter(
+      const ventes = (transRes.data || []).filter((t) => t.type === "vente");
+      const filteredActions = (actionsRes.data || []).filter(
         (a) => a.creatorId === userId
       );
 
@@ -85,6 +82,7 @@ const DashboardActionnaire = () => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  // --- GESTION DES ACTIFS ---
   const startEdit = (action) => {
     setEditingId(action._id);
     setEditForm({ price: action.price, description: action.description || "" });
@@ -92,7 +90,7 @@ const DashboardActionnaire = () => {
 
   const handleUpdateAction = async (id) => {
     try {
-      await api.patch(`/api/actions/${id}`, editForm);
+      await api.patch(`/actions/${id}`, editForm);
       toast.success("Actif mis à jour !");
       setEditingId(null);
       fetchData();
@@ -101,6 +99,7 @@ const DashboardActionnaire = () => {
     }
   };
 
+  // --- CALCUL DES DONNÉES GRAPHIQUE ---
   const chartData = useMemo(() => {
     const gains = transactions
       .filter(
@@ -123,7 +122,7 @@ const DashboardActionnaire = () => {
     });
   }, [transactions]);
 
-  // --- LOGIQUE DE RETRAIT MISE À JOUR ---
+  // --- LOGIQUE DE RETRAIT ---
   const handleWithdraw = async (e) => {
     e.preventDefault();
     const amount = Number(withdrawAmount);
@@ -134,11 +133,10 @@ const DashboardActionnaire = () => {
       return toast.error("Numéro de téléphone invalide");
 
     try {
-      // On envoie le montant ET le numéro de téléphone à l'API
-      await api.post("/api/transactions/withdraw", {
+      await api.post("/transactions/withdraw", {
         userId,
         amount,
-        recipientPhone: withdrawPhone, // Ce champ sera reçu par l'admin
+        recipientPhone: withdrawPhone,
       });
       toast.success("Demande de retrait envoyée !");
       setWithdrawAmount("");
@@ -149,11 +147,12 @@ const DashboardActionnaire = () => {
     }
   };
 
+  // --- RÉPONSE SUPPORT ---
   const handleSendReply = async (messageId) => {
     const replyText = replies[messageId];
     if (!replyText?.trim()) return toast.error("Le message est vide");
     try {
-      await api.patch(`/api/messages/reply/${messageId}`, { reply: replyText });
+      await api.patch(`/messages/reply/${messageId}`, { reply: replyText });
       toast.success("Réponse envoyée !");
       setReplies({ ...replies, [messageId]: "" });
       fetchData();
@@ -182,20 +181,20 @@ const DashboardActionnaire = () => {
           <h1 className="text-4xl italic font-black uppercase">
             Espace <span className="text-blue-500">Business</span>
           </h1>
-          <p className="mt-2 text-sm font-bold tracking-wider uppercase text-slate-500">
+          <p className="mt-2 text-[10px] font-black tracking-widest uppercase text-slate-500">
             Flux financier en temps réel
           </p>
         </header>
 
-        {/* GRAPHIQUE */}
-        <div className="mb-10 bg-slate-900/40 border border-slate-800 p-6 rounded-[2.5rem] shadow-2xl">
-          <div className="flex items-center justify-between px-4 mb-6">
-            <div>
-              <h3 className="text-lg italic font-black uppercase">
-                Performance
-              </h3>
+        {/* --- SECTION PERFORMANCE --- */}
+        <div className="mb-10 bg-slate-900/40 border border-slate-800 p-8 rounded-[2.5rem] shadow-2xl">
+          <div className="flex items-center justify-between mb-8">
+            <h3 className="text-lg italic font-black uppercase tracking-tighter">
+              Performance de Croissance
+            </h3>
+            <div className="bg-emerald-500/10 text-emerald-500 p-2 rounded-xl">
+              <FiTrendingUp size={20} />
             </div>
-            <FiTrendingUp className="text-emerald-500" size={24} />
           </div>
           <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -217,20 +216,22 @@ const DashboardActionnaire = () => {
                   fontSize={10}
                   tickLine={false}
                   axisLine={false}
-                  tickFormatter={(val) => `${val} F`}
+                  tickFormatter={(val) => `${val}F`}
                 />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "#0f172a",
-                    border: "1px solid #1e293b",
+                    border: "none",
                     borderRadius: "12px",
+                    fontSize: "12px",
                   }}
                 />
                 <Area
                   type="monotone"
                   dataKey="montant"
                   stroke="#10b981"
-                  fillOpacity={0.2}
+                  strokeWidth={3}
+                  fillOpacity={0.1}
                   fill="#10b981"
                 />
               </AreaChart>
@@ -238,30 +239,38 @@ const DashboardActionnaire = () => {
           </div>
         </div>
 
-        {/* GESTION ACTIFS */}
+        {/* --- GRID MES ACTIFS --- */}
         <div className="mb-12">
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-8">
             <FiPackage className="text-blue-500" size={24} />
-            <h2 className="text-xl italic font-black uppercase">Mes Actifs</h2>
+            <h2 className="text-xl italic font-black uppercase">
+              Actifs sous Gestion
+            </h2>
           </div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {mesActions.map((action) => (
               <div
                 key={action._id}
-                className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] relative"
+                className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] hover:border-blue-500/40 transition-all"
               >
                 {editingId === action._id ? (
                   <div className="space-y-4">
-                    <input
-                      type="number"
-                      className="w-full p-3 bg-black border outline-none border-slate-700 rounded-xl text-emerald-400"
-                      value={editForm.price}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, price: e.target.value })
-                      }
-                    />
+                    <div className="p-3 bg-black rounded-xl border border-slate-700">
+                      <label className="text-[8px] font-black uppercase text-slate-500">
+                        Prix unitaire
+                      </label>
+                      <input
+                        type="number"
+                        className="w-full bg-transparent outline-none text-emerald-400 font-black"
+                        value={editForm.price}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, price: e.target.value })
+                        }
+                      />
+                    </div>
                     <textarea
-                      className="w-full h-20 p-3 bg-black border outline-none border-slate-700 rounded-xl text-slate-300"
+                      placeholder="Description de l'actif..."
+                      className="w-full h-20 p-4 bg-black border outline-none border-slate-700 rounded-xl text-slate-300 text-xs"
                       value={editForm.description}
                       onChange={(e) =>
                         setEditForm({
@@ -272,30 +281,40 @@ const DashboardActionnaire = () => {
                     />
                     <button
                       onClick={() => handleUpdateAction(action._id)}
-                      className="w-full bg-emerald-600 p-3 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
+                      className="w-full bg-emerald-600 py-3 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-emerald-500"
                     >
-                      <FiSave /> Enregistrer
+                      <FiSave /> Enregistrer les modifications
                     </button>
                   </div>
                 ) : (
                   <div>
                     <div className="flex items-start justify-between mb-4">
-                      <h3 className="text-lg font-black uppercase">
+                      <h3 className="text-lg font-black uppercase tracking-tighter">
                         {action.name}
                       </h3>
                       <button
                         onClick={() => startEdit(action)}
-                        className="p-2 rounded-full bg-slate-800 hover:bg-blue-600"
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600 transition-colors"
                       >
                         <FiEdit2 size={14} />
                       </button>
                     </div>
-                    <p className="text-2xl font-black text-emerald-400">
-                      {action.price.toLocaleString()} F
-                    </p>
-                    <p className="text-[10px] text-slate-500 uppercase mt-2">
-                      {action.availableQuantity} parts restantes
-                    </p>
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className="text-2xl font-black text-white">
+                          {action.price?.toLocaleString()}{" "}
+                          <span className="text-sm text-blue-500">F</span>
+                        </p>
+                        <p className="text-[9px] text-slate-500 uppercase font-black mt-1">
+                          {action.availableQuantity} parts disponibles au marché
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[8px] font-black bg-white/5 px-2 py-1 rounded text-slate-400 uppercase">
+                          Live
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -303,96 +322,120 @@ const DashboardActionnaire = () => {
           </div>
         </div>
 
-        {/* SUPPORT CHAT */}
-        <div className="mb-12 bg-slate-900/50 border border-slate-800 rounded-[2.5rem] p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <FiMessageSquare className="text-purple-500" size={24} />
-            <h2 className="text-xl italic font-black uppercase">Support</h2>
-          </div>
-          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2">
-            {messages.map((msg) => (
-              <div
-                key={msg._id}
-                className="p-4 border bg-slate-800/30 border-slate-800 rounded-2xl"
-              >
-                <p className="text-[10px] font-black text-purple-400 uppercase mb-1">
-                  De: {msg.senderId?.name || "Client"}
+        {/* --- STATS & SUPPORT --- */}
+        <div className="grid grid-cols-1 gap-8 mb-12 lg:grid-cols-3">
+          <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-[2.5rem] p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <FiMessageSquare className="text-purple-500" size={24} />
+              <h2 className="text-xl italic font-black uppercase">
+                Support Clients
+              </h2>
+            </div>
+            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-4 scrollbar-hide">
+              {messages.length === 0 && (
+                <p className="text-slate-600 italic text-sm">
+                  Aucun message pour le moment.
                 </p>
-                <p className="mb-3 text-sm italic text-slate-300">
-                  "{msg.content}"
-                </p>
-                {msg.reply ? (
-                  <div className="p-2 text-xs border-l-2 rounded-lg bg-black/40 text-slate-400 border-emerald-500">
-                    <span className="text-[8px] font-black text-emerald-500 uppercase block">
-                      Ma réponse:
+              )}
+              {messages.map((msg) => (
+                <div
+                  key={msg._id}
+                  className="p-5 border bg-black/20 border-slate-800 rounded-3xl"
+                >
+                  <div className="flex justify-between mb-2">
+                    <span className="text-[9px] font-black text-purple-400 uppercase">
+                      De: {msg.senderId?.name || "Investisseur"}
                     </span>
-                    {msg.reply}
+                    <span className="text-[8px] text-slate-600">
+                      {new Date(msg.createdAt).toLocaleDateString()}
+                    </span>
                   </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Votre réponse..."
-                      className="flex-1 p-2 text-xs bg-black border rounded-lg outline-none border-slate-700 focus:border-purple-500"
-                      value={replies[msg._id] || ""}
-                      onChange={(e) =>
-                        setReplies({ ...replies, [msg._id]: e.target.value })
-                      }
-                    />
-                    <button
-                      onClick={() => handleSendReply(msg._id)}
-                      className="p-2 bg-purple-600 rounded-lg"
-                    >
-                      <FiSend />
-                    </button>
-                  </div>
-                )}
+                  <p className="mb-4 text-sm text-slate-300 font-medium">
+                    "{msg.content}"
+                  </p>
+                  {msg.reply ? (
+                    <div className="p-3 text-[11px] border-l-2 bg-emerald-500/5 text-slate-400 border-emerald-500 rounded-r-xl italic">
+                      <span className="text-[8px] font-black text-emerald-500 uppercase block mb-1">
+                        Ma réponse :
+                      </span>
+                      {msg.reply}
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Répondre au client..."
+                        className="flex-1 p-3 text-xs bg-black border rounded-2xl outline-none border-slate-800 focus:border-purple-500"
+                        value={replies[msg._id] || ""}
+                        onChange={(e) =>
+                          setReplies({ ...replies, [msg._id]: e.target.value })
+                        }
+                      />
+                      <button
+                        onClick={() => handleSendReply(msg._id)}
+                        className="p-4 bg-purple-600 rounded-2xl hover:bg-purple-500 transition-colors"
+                      >
+                        <FiSend size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] flex flex-col justify-center items-center text-center">
+              <p className="text-[10px] font-black uppercase text-slate-500 mb-2">
+                Solde Retirable
+              </p>
+              <h2 className="text-4xl font-black text-blue-500">
+                {balance.toLocaleString()} F
+              </h2>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] flex items-center gap-6">
+              <div className="p-4 bg-emerald-500/10 text-emerald-500 rounded-2xl">
+                <FiActivity size={24} />
               </div>
-            ))}
+              <div>
+                <h2 className="text-2xl font-black">{stats.nombreVentes}</h2>
+                <p className="text-[9px] font-black uppercase text-slate-500">
+                  Ventes réalisées
+                </p>
+              </div>
+            </div>
+            <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] flex items-center gap-6">
+              <div className="p-4 bg-purple-500/10 text-purple-500 rounded-2xl">
+                <FiTrendingUp size={24} />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black">{stats.actionsCount}</h2>
+                <p className="text-[9px] font-black uppercase text-slate-500">
+                  Actifs en ligne
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* STATS RAPIDES */}
-        <div className="grid grid-cols-1 gap-6 mb-12 md:grid-cols-3">
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem]">
-            <p className="text-[10px] font-black uppercase text-slate-500 mb-2">
-              Solde Retirable
-            </p>
-            <h2 className="text-4xl font-black text-blue-500">
-              {balance.toLocaleString()} F
-            </h2>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem]">
-            <FiActivity className="mb-4 text-emerald-500" size={30} />
-            <h2 className="text-3xl font-black">{stats.nombreVentes} Ventes</h2>
-          </div>
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem]">
-            <FiTrendingUp className="mb-4 text-purple-500" size={30} />
-            <h2 className="text-3xl font-black">{stats.actionsCount} Actifs</h2>
-          </div>
-        </div>
-
+        {/* --- RETRAIT & HISTORIQUE --- */}
         <div className="grid grid-cols-1 gap-8 pb-20 lg:grid-cols-2">
-          {/* FORMULAIRE RETRAIT MIS À JOUR AVEC CHAMP NUMÉRO */}
           <div className="bg-gradient-to-br from-slate-900 to-black border border-slate-800 p-10 rounded-[3rem] shadow-2xl">
-            <h3 className="mb-2 text-2xl italic font-black uppercase">
-              Retrait
+            <h3 className="mb-2 text-2xl italic font-black uppercase tracking-tighter">
+              Retrait de fonds
             </h3>
-            <p className="mb-8 text-xs font-bold uppercase text-slate-500">
-              Configuraton du transfert
+            <p className="mb-8 text-[9px] font-black uppercase text-slate-500 tracking-widest">
+              Configuration du transfert mobile
             </p>
             <form onSubmit={handleWithdraw} className="space-y-4">
-              <div className="relative">
-                <input
-                  type="number"
-                  placeholder="Montant (XAF)"
-                  className="w-full p-5 text-xl font-black bg-black border outline-none border-slate-800 rounded-2xl focus:border-blue-500"
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  required
-                />
-              </div>
-              {/* NOUVEAU : Champ pour le numéro de téléphone */}
+              <input
+                type="number"
+                placeholder="Montant (FCFA)"
+                className="w-full p-5 text-xl font-black bg-black border outline-none border-slate-800 rounded-3xl focus:border-blue-500"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                required
+              />
               <div className="relative">
                 <span className="absolute -translate-y-1/2 left-5 top-1/2 text-slate-500">
                   <FiPhone size={20} />
@@ -400,7 +443,7 @@ const DashboardActionnaire = () => {
                 <input
                   type="tel"
                   placeholder="Numéro Mobile Money"
-                  className="w-full p-5 text-lg font-black bg-black border outline-none pl-14 border-slate-800 rounded-2xl focus:border-emerald-500"
+                  className="w-full p-5 text-lg font-black bg-black border outline-none pl-14 border-slate-800 rounded-3xl focus:border-emerald-500"
                   value={withdrawPhone}
                   onChange={(e) => setWithdrawPhone(e.target.value)}
                   required
@@ -408,44 +451,48 @@ const DashboardActionnaire = () => {
               </div>
               <button
                 type="submit"
-                className="w-full bg-blue-600 py-5 rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2"
+                className="w-full bg-blue-600 py-5 rounded-3xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-500 transition-all flex items-center justify-center gap-3"
               >
-                Demander le virement <FiArrowUpRight />
+                Initier le virement <FiArrowUpRight size={18} />
               </button>
             </form>
           </div>
 
-          {/* HISTORIQUE */}
-          <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
-            <div className="p-6 border-b border-slate-800 bg-slate-800/20 uppercase text-[10px] font-black text-slate-400">
-              Journal financier
+          <div className="bg-slate-900 border border-slate-800 rounded-[3rem] overflow-hidden shadow-2xl flex flex-col">
+            <div className="p-6 border-b border-slate-800 bg-slate-800/20 uppercase text-[10px] font-black text-slate-400 tracking-widest">
+              Journal des flux financiers
             </div>
-            <div className="max-h-[400px] overflow-y-auto">
+            <div className="flex-1 overflow-y-auto max-h-[400px] scrollbar-hide">
+              {transactions.length === 0 && (
+                <div className="p-10 text-center text-slate-600 text-xs">
+                  Aucune transaction enregistrée
+                </div>
+              )}
               {transactions.map((t) => (
                 <div
                   key={t._id}
-                  className="flex items-center justify-between p-6 transition-all border-b border-slate-800/50 hover:bg-slate-800/30"
+                  className="flex items-center justify-between p-6 border-b border-slate-800/50 hover:bg-white/5 transition-colors"
                 >
                   <div className="flex items-center gap-4">
                     <div
-                      className={`p-3 rounded-full ${
+                      className={`p-3 rounded-2xl ${
                         t.type === "vente"
                           ? "bg-emerald-500/10 text-emerald-500"
                           : "bg-orange-500/10 text-orange-500"
                       }`}
                     >
                       {t.type === "vente" ? (
-                        <FiTrendingUp size={20} />
+                        <FiTrendingUp size={18} />
                       ) : (
-                        <FiArrowUpRight size={20} />
+                        <FiArrowUpRight size={18} />
                       )}
                     </div>
                     <div>
-                      <p className="text-sm italic font-black uppercase">
-                        {t.type === "vente" ? "Vente" : "Retrait"}
+                      <p className="text-xs font-black uppercase">
+                        {t.type === "vente" ? "Revenu Vente" : "Retrait Cash"}
                       </p>
-                      <p className="text-[9px] text-slate-500 font-bold">
-                        {new Date(t.date).toLocaleDateString()}
+                      <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">
+                        {new Date(t.date).toLocaleString()}
                       </p>
                     </div>
                   </div>
@@ -460,7 +507,13 @@ const DashboardActionnaire = () => {
                       {t.type === "vente" ? "+" : "-"}{" "}
                       {t.amount.toLocaleString()} F
                     </p>
-                    <span className="text-[8px] uppercase font-black opacity-50">
+                    <span
+                      className={`text-[8px] font-black px-2 py-0.5 rounded uppercase ${
+                        t.status === "valide"
+                          ? "bg-emerald-500/20 text-emerald-500"
+                          : "bg-slate-800 text-slate-400"
+                      }`}
+                    >
                       {t.status}
                     </span>
                   </div>

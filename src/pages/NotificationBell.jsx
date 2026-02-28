@@ -9,7 +9,7 @@ const NotificationBell = () => {
 
   const fetchNotifications = async () => {
     try {
-      const res = await api.get(`/api/notifications/${userId}`);
+      const res = await api.get(`/notifications/${userId}`);
       setNotifications(res.data);
     } catch (err) {
       console.error(err);
@@ -25,7 +25,7 @@ const NotificationBell = () => {
   const markAsRead = async () => {
     setShow(!show);
     if (!show) {
-      await api.patch("/api/notifications/mark-read", { userId });
+      await api.patch("/notifications/mark-read", { userId });
       setNotifications(notifications.map((n) => ({ ...n, read: true })));
     }
   };

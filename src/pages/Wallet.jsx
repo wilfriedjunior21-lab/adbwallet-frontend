@@ -48,8 +48,8 @@ const Wallet = () => {
     if (!userId) return;
     try {
       const [balanceRes, transRes] = await Promise.all([
-        api.get(`/api/users/${userId}/balance`),
-        api.get(`/api/transactions/user/${userId}`),
+        api.get(`/users/${userId}/balance`),
+        api.get(`/transactions/user/${userId}`),
       ]);
 
       const allTrans = transRes.data;
@@ -119,7 +119,7 @@ const Wallet = () => {
     const loadingToast = toast.loading("Redirection vers PayMooney...");
 
     try {
-      const response = await api.post("/api/transactions/paymooney/pay", {
+      const response = await api.post("/transactions/paymooney/pay", {
         userId,
         amount: Number(amount),
         phone: phone,
@@ -136,7 +136,7 @@ const Wallet = () => {
         const checkStatus = setInterval(async () => {
           try {
             const statusRes = await api.get(
-              `/api/transactions/paymooney/status/${referenceId}`
+              `/transactions/paymooney/status/${referenceId}`
             );
             if (statusRes.data.status === "SUCCESSFUL") {
               clearInterval(checkStatus);
@@ -173,7 +173,7 @@ const Wallet = () => {
 
     const loadingToast = toast.loading("Envoi de la demande...");
     try {
-      await api.post("/api/transactions/withdraw", {
+      await api.post("/transactions/withdraw", {
         userId,
         amount: Number(amount),
         recipientPhone: phone,

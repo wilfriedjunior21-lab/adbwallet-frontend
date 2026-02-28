@@ -27,7 +27,7 @@ const ProposerActif = () => {
     setLoading(true);
 
     try {
-      await api.post("/api/actions/propose", {
+      await api.post("/actions/propose", {
         ...formData,
         creatorId: userId,
         price: Number(formData.price),

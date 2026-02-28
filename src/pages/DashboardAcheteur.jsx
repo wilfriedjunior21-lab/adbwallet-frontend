@@ -4,7 +4,6 @@ import {
   FiShield,
   FiAlertCircle,
   FiTrendingUp,
-  FiShoppingBag,
   FiActivity,
   FiMessageSquare,
   FiSend,
@@ -19,8 +18,8 @@ import { toast, Toaster } from "react-hot-toast";
 const DashboardAcheteur = () => {
   const [user, setUser] = useState(null);
   const [actions, setActions] = useState([]);
-  const [bonds, setBonds] = useState([]); // Nouvel état pour les obligations
-  const [activeTab, setActiveTab] = useState("actions"); // Onglet actif
+  const [bonds, setBonds] = useState([]);
+  const [activeTab, setActiveTab] = useState("actions");
   const [kycDoc, setKycDoc] = useState("");
   const [buyQty, setBuyQty] = useState({});
   const [loading, setLoading] = useState(true);
@@ -30,19 +29,21 @@ const DashboardAcheteur = () => {
   const [newMessage, setNewMessage] = useState("");
   const [messages, setMessages] = useState([]);
 
-  // --- ÉTATS POUR LE DÉPÔT PAYMOONEY ---
+  // --- ÉTATS POUR LE DÉPÔT ---
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   const userId = localStorage.getItem("userId");
 
+  // --- CHARGEMENT DES DONNÉES ---
   const fetchData = useCallback(async () => {
+    if (!userId) return;
     try {
       const [userRes, actionsRes, bondsRes] = await Promise.all([
-        api.get(`/api/user/${userId}`),
-        api.get("/api/actions"),
-        api.get("/api/bonds"), // Récupération des obligations
+        api.get(`/user/${userId}`),
+        api.get("/actions"),
+        api.get("/bonds"),
       ]);
       setUser(userRes.data);
       setActions(actionsRes.data);
@@ -60,17 +61,15 @@ const DashboardAcheteur = () => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Charger les messages quand on ouvre un chat
+  // --- CHARGEMENT DES MESSAGES ---
   useEffect(() => {
-    if (activeChat) {
+    if (activeChat && userId) {
       const fetchMessages = async () => {
         try {
-          const res = await api.get(
-            `/api/messages/chat/${activeChat}/${userId}`
-          );
+          const res = await api.get(`/messages/chat/${activeChat}/${userId}`);
           setMessages(res.data);
         } catch (err) {
-          console.error("Erreur chargement messages");
+          console.error("Erreur messages");
         }
       };
       fetchMessages();
@@ -79,10 +78,11 @@ const DashboardAcheteur = () => {
     }
   }, [activeChat, userId]);
 
+  // --- ACTIONS UTILISATEUR ---
   const handleKycSubmit = async () => {
     if (!kycDoc) return toast.error("Veuillez entrer l'URL du document");
     try {
-      await api.post("/api/user/submit-kyc", { userId, documentUrl: kycDoc });
+      await api.post("/user/submit-kyc", { userId, documentUrl: kycDoc });
       toast.success("Document envoyé pour validation !");
       fetchData();
     } catch (err) {
@@ -94,14 +94,14 @@ const DashboardAcheteur = () => {
     const qty = buyQty[actionId] || 1;
     const totalCost = price * qty;
 
-    if (user.balance < totalCost) {
+    if (!user || user.balance < totalCost) {
       return toast.error(
         `Solde insuffisant (${totalCost.toLocaleString()} F requis)`
       );
     }
 
     try {
-      const res = await api.post("/api/transactions/buy", {
+      const res = await api.post("/transactions/buy", {
         userId,
         actionId,
         quantity: qty,
@@ -113,65 +113,53 @@ const DashboardAcheteur = () => {
     }
   };
 
-  // --- LOGIQUE ACHAT OBLIGATION ---
   const handleSubscribeBond = async (bondId, price) => {
-    if (user.balance < price) {
+    if (!user || user.balance < price) {
       return toast.error("Solde insuffisant pour cette obligation.");
     }
     try {
-      await api.post("/api/transactions/subscribe-bond", { userId, bondId });
-      toast.success("Souscription à l'obligation réussie !");
+      await api.post("/transactions/subscribe-bond", { userId, bondId });
+      toast.success("Souscription réussie !");
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.error || "Erreur de souscription");
     }
   };
 
-  // --- LOGIQUE DE DÉPÔT PAYMOONEY ---
   const handleDepositSubmit = async () => {
     const amount = parseFloat(depositAmount);
-    if (!amount || amount < 100) {
+    if (!amount || amount < 100)
       return toast.error("Le montant minimum est de 100 FCFA");
-    }
-    const userEmail = localStorage.getItem("email") || "client@email.com";
-    const userName = localStorage.getItem("name") || "Utilisateur";
-    setIsRedirecting(true);
 
+    setIsRedirecting(true);
     try {
-      const res = await api.post("/api/payments/paymooney/init", {
+      const res = await api.post("/payments/paymooney/init", {
         userId,
-        amount: amount,
-        email: userEmail,
-        name: userName,
+        amount,
+        email: localStorage.getItem("email"),
+        name: localStorage.getItem("name"),
       });
-      const { payment_url } = res.data;
-      if (payment_url) {
-        toast.success("Redirection vers la plateforme de paiement...");
-        window.location.href = payment_url;
-      } else {
-        throw new Error("L'URL de paiement n'a pas été générée.");
+      if (res.data.payment_url) {
+        toast.success("Redirection...");
+        window.location.href = res.data.payment_url;
       }
     } catch (err) {
-      const errorMsg =
-        err.response?.data?.error || "Erreur lors de l'initialisation";
-      toast.error(errorMsg);
+      toast.error("Erreur lors de l'initialisation du dépôt");
       setIsRedirecting(false);
     }
   };
 
-  // --- LOGIQUE DU SUPPORT RÉELLE ---
   const handleSendMessage = async (actionId, receiverId) => {
     if (!newMessage.trim()) return;
     try {
-      const res = await api.post("/api/messages/send", {
+      const res = await api.post("/messages/send", {
         actionId,
         senderId: userId,
         receiverId,
         content: newMessage,
       });
-      setMessages([...messages, res.data]);
+      setMessages((prev) => [...prev, res.data]);
       setNewMessage("");
-      toast.success("Message envoyé !");
     } catch (err) {
       toast.error("Erreur d'envoi");
     }
@@ -229,6 +217,7 @@ const DashboardAcheteur = () => {
         </div>
       )}
 
+      {/* --- HEADER --- */}
       <header className="flex flex-col items-start justify-between gap-4 mb-10 md:flex-row md:items-end">
         <div>
           <h1 className="text-4xl italic font-black leading-none uppercase">
@@ -247,7 +236,7 @@ const DashboardAcheteur = () => {
               </div>
               <div>
                 <p className="text-[8px] text-slate-500 font-black uppercase tracking-tighter">
-                  Mon Solde Disponible
+                  Mon Solde
                 </p>
                 <p className="text-xl font-black text-white">
                   {user.balance?.toLocaleString()}{" "}
@@ -257,19 +246,18 @@ const DashboardAcheteur = () => {
             </div>
             <button
               onClick={() => setShowDepositModal(true)}
-              className="p-4 transition-all bg-blue-600 shadow-lg rounded-3xl hover:bg-blue-500 shadow-blue-900/20 group"
-              title="Déposer des fonds"
+              className="p-4 transition-all bg-blue-600 shadow-lg rounded-3xl hover:bg-blue-500 group"
             >
               <FiPlusCircle
                 size={24}
-                className="transition-transform duration-300 group-hover:rotate-90"
+                className="group-hover:rotate-90 transition-transform"
               />
             </button>
           </div>
         )}
       </header>
 
-      {/* --- SÉLECTEUR D'ONGLETS --- */}
+      {/* --- NAVIGATION --- */}
       <div className="flex gap-4 mb-8">
         <button
           onClick={() => setActiveTab("actions")}
@@ -293,8 +281,8 @@ const DashboardAcheteur = () => {
         </button>
       </div>
 
-      {/* --- BLOC KYC --- */}
-      {user && user.kycStatus === "non_verifie" && (
+      {/* --- KYC WARNING --- */}
+      {user?.kycStatus === "non_verifie" && (
         <div className="bg-orange-600/10 border border-orange-600/20 p-8 rounded-[2rem] mb-10 shadow-xl">
           <div className="flex items-center gap-3 mb-4 text-orange-500">
             <FiAlertCircle size={24} />
@@ -313,178 +301,151 @@ const DashboardAcheteur = () => {
               onClick={handleKycSubmit}
               className="bg-orange-600 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-orange-500 transition-all shadow-lg"
             >
-              Soumettre le KYC
+              Soumettre
             </button>
           </div>
         </div>
       )}
 
-      {/* --- LISTE DES ACTIFS --- */}
+      {/* --- GRID D'ACTIFS --- */}
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
         {activeTab === "actions"
-          ? actions.map((action) => {
-              const stockRatio =
-                action.availableQuantity / action.totalQuantity;
-              const isLowStock =
-                stockRatio <= 0.15 && action.availableQuantity > 0;
+          ? actions.map((action) => (
+              <div
+                key={action._id}
+                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-blue-500/50 transition-all shadow-xl relative overflow-hidden"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <h3 className="text-xl italic font-black tracking-tighter uppercase">
+                    {action.name}
+                  </h3>
+                  <span className="bg-emerald-500/10 text-emerald-500 px-4 py-1.5 rounded-xl text-xs font-black">
+                    {action.price?.toLocaleString()} F
+                  </span>
+                </div>
 
-              return (
-                <div
-                  key={action._id}
-                  className={`bg-slate-900 border ${
-                    isLowStock ? "border-orange-500/30" : "border-slate-800"
-                  } p-6 rounded-[2.5rem] hover:border-blue-500/50 transition-all group relative overflow-hidden shadow-xl`}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-xl italic font-black tracking-tighter uppercase group-hover:text-blue-400">
-                        {action.name}
-                      </h3>
-                      {isLowStock && (
-                        <span className="text-[8px] bg-orange-500 text-white px-2 py-0.5 rounded-full font-black uppercase animate-pulse">
-                          Rareté Critique
-                        </span>
-                      )}
-                    </div>
-                    <span className="bg-emerald-500/10 text-emerald-500 px-4 py-1.5 rounded-xl text-xs font-black">
-                      {action.price.toLocaleString()} F
-                    </span>
-                  </div>
+                {/* GRAPHE */}
+                <div className="w-full h-24 p-2 my-4 border bg-black/40 rounded-3xl border-white/5">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={action.priceHistory || []}>
+                      <Line
+                        type="monotone"
+                        dataKey="price"
+                        stroke="#3b82f6"
+                        strokeWidth={3}
+                        dot={false}
+                      />
+                      <YAxis hide domain={["auto", "auto"]} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "#0f172a",
+                          border: "none",
+                          borderRadius: "12px",
+                          fontSize: "10px",
+                        }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
 
-                  {/* Graphe des prix (Action uniquement) */}
-                  <div className="w-full h-24 p-2 my-4 border bg-black/40 rounded-3xl border-white/5">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={action.priceHistory || []}>
-                        <Line
-                          type="monotone"
-                          dataKey="price"
-                          stroke={isLowStock ? "#f97316" : "#3b82f6"}
-                          strokeWidth={3}
-                          dot={false}
-                        />
-                        <YAxis hide domain={["auto", "auto"]} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "#0f172a",
-                            border: "none",
-                            borderRadius: "12px",
-                            fontSize: "10px",
-                          }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="space-y-3">
-                    {user?.kycStatus === "valide" &&
-                      action.availableQuantity > 0 && (
-                        <div className="flex items-center gap-2 p-2 border bg-slate-950 rounded-2xl border-slate-800">
-                          <span className="text-[9px] font-black uppercase ml-3 text-slate-500">
-                            Qté
-                          </span>
-                          <input
-                            type="number"
-                            min="1"
-                            value={buyQty[action._id] || 1}
-                            onChange={(e) =>
-                              setBuyQty({
-                                ...buyQty,
-                                [action._id]: Math.max(
-                                  1,
-                                  parseInt(e.target.value) || 1
-                                ),
-                              })
-                            }
-                            className="w-full text-sm font-black text-center text-blue-500 bg-transparent outline-none"
-                          />
-                        </div>
-                      )}
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleBuy(action._id, action.price)}
-                        disabled={
-                          user?.kycStatus !== "valide" ||
-                          action.availableQuantity <= 0
+                <div className="space-y-3">
+                  {user?.kycStatus === "valide" && (
+                    <div className="flex items-center gap-2 p-2 border bg-slate-950 rounded-2xl border-slate-800">
+                      <span className="text-[9px] font-black uppercase ml-3 text-slate-500">
+                        Qté
+                      </span>
+                      <input
+                        type="number"
+                        min="1"
+                        value={buyQty[action._id] || 1}
+                        onChange={(e) =>
+                          setBuyQty({
+                            ...buyQty,
+                            [action._id]: Math.max(
+                              1,
+                              parseInt(e.target.value) || 1
+                            ),
+                          })
                         }
-                        className="flex-[2] py-4 bg-white text-black rounded-2xl font-black uppercase text-[10px] hover:bg-blue-600 hover:text-white transition-all disabled:opacity-30"
-                      >
-                        Acheter
-                      </button>
-                      <button
-                        onClick={() =>
-                          setActiveChat(
-                            activeChat === action._id ? null : action._id
-                          )
-                        }
-                        className={`flex-1 rounded-2xl flex items-center justify-center transition-all ${
-                          activeChat === action._id
-                            ? "bg-blue-600 text-white"
-                            : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                        }`}
-                      >
-                        <FiMessageSquare size={18} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* CHAT INTÉGRÉ DANS LA CARD */}
-                  {activeChat === action._id && (
-                    <div className="pt-4 mt-4 border-t border-slate-800 animate-in slide-in-from-top-2">
-                      <div className="pr-2 mb-3 space-y-2 overflow-y-auto max-h-32 scrollbar-hide">
-                        {messages.length === 0 && (
-                          <p className="text-[9px] text-center text-slate-600 italic">
-                            Aucun message.
-                          </p>
-                        )}
-                        {messages.map((msg, idx) => (
-                          <div
-                            key={idx}
-                            className={`p-2 rounded-lg text-[10px] ${
-                              msg.senderId === userId
-                                ? "bg-blue-600/20 border-blue-500/30 ml-4"
-                                : "bg-slate-800 mr-4 border-slate-700"
-                            }`}
-                          >
-                            <p className="font-medium">{msg.content}</p>
-                            {msg.reply && (
-                              <div className="pt-2 mt-2 border-t border-blue-500/20 text-emerald-400">
-                                <p className="text-[8px] font-black uppercase">
-                                  Réponse :
-                                </p>
-                                <p>{msg.reply}</p>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Question..."
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          className="flex-1 bg-black border border-slate-800 rounded-xl px-3 py-2 text-[10px] outline-none"
-                        />
-                        <button
-                          onClick={() =>
-                            handleSendMessage(action._id, action.creatorId)
-                          }
-                          className="p-2 bg-blue-600 rounded-xl"
-                        >
-                          <FiSend size={12} />
-                        </button>
-                      </div>
+                        className="w-full text-sm font-black text-center text-blue-500 bg-transparent outline-none"
+                      />
                     </div>
                   )}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleBuy(action._id, action.price)}
+                      disabled={
+                        user?.kycStatus !== "valide" ||
+                        action.availableQuantity <= 0
+                      }
+                      className="flex-[2] py-4 bg-white text-black rounded-2xl font-black uppercase text-[10px] hover:bg-blue-600 hover:text-white transition-all disabled:opacity-30"
+                    >
+                      Acheter
+                    </button>
+                    <button
+                      onClick={() =>
+                        setActiveChat(
+                          activeChat === action._id ? null : action._id
+                        )
+                      }
+                      className={`flex-1 rounded-2xl flex items-center justify-center transition-all ${
+                        activeChat === action._id
+                          ? "bg-blue-600"
+                          : "bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      <FiMessageSquare size={18} />
+                    </button>
+                  </div>
                 </div>
-              );
-            })
-          : /* --- RENDU DES OBLIGATIONS --- */
-            bonds.map((bond) => (
+
+                {/* CHAT */}
+                {activeChat === action._id && (
+                  <div className="pt-4 mt-4 border-t border-slate-800 animate-in slide-in-from-top-2">
+                    <div className="mb-3 space-y-2 overflow-y-auto max-h-32 scrollbar-hide">
+                      {messages.map((msg, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-2 rounded-lg text-[10px] ${
+                            msg.senderId === userId
+                              ? "bg-blue-600/20 border border-blue-500/30 ml-4"
+                              : "bg-slate-800 mr-4"
+                          }`}
+                        >
+                          <p>{msg.content}</p>
+                          {msg.reply && (
+                            <p className="text-emerald-400 mt-1 border-t border-white/5 pt-1">
+                              Réponse: {msg.reply}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Question..."
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        className="flex-1 bg-black border border-slate-800 rounded-xl px-3 py-2 text-[10px] outline-none"
+                      />
+                      <button
+                        onClick={() =>
+                          handleSendMessage(action._id, action.creatorId)
+                        }
+                        className="p-2 bg-blue-600 rounded-xl"
+                      >
+                        <FiSend size={12} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          : bonds.map((bond) => (
               <div
                 key={bond._id}
-                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-amber-500/50 transition-all shadow-xl group"
+                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-amber-500/50 transition-all shadow-xl"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div>
@@ -499,7 +460,6 @@ const DashboardAcheteur = () => {
                     +{bond.tauxInteret}%
                   </span>
                 </div>
-
                 <div className="grid grid-cols-2 gap-3 mb-6">
                   <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
                     <FiCalendar className="text-amber-500 mb-1" size={14} />
@@ -511,29 +471,19 @@ const DashboardAcheteur = () => {
                   <div className="bg-black/40 p-3 rounded-2xl border border-white/5">
                     <FiLayers className="text-blue-500 mb-1" size={14} />
                     <p className="text-[8px] text-slate-500 uppercase font-black">
-                      Prix Ticket
+                      Prix
                     </p>
                     <p className="text-xs font-black">
                       {bond.prixUnitaire?.toLocaleString()} F
                     </p>
                   </div>
                 </div>
-
-                <div className="mb-6 p-4 bg-slate-950 rounded-2xl border border-slate-800">
-                  <p className="text-[8px] text-slate-500 uppercase font-black mb-1">
-                    Garantie du Projet
-                  </p>
-                  <p className="text-sm font-black text-white">
-                    {bond.garantie?.toLocaleString()} FCFA
-                  </p>
-                </div>
-
                 <button
                   onClick={() =>
                     handleSubscribeBond(bond._id, bond.prixUnitaire)
                   }
                   disabled={user?.kycStatus !== "valide"}
-                  className="w-full bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 transition-all shadow-lg shadow-amber-900/20 disabled:opacity-30"
+                  className="w-full bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 transition-all disabled:opacity-30"
                 >
                   Investir maintenant
                 </button>
