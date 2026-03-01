@@ -13,7 +13,17 @@ import {
   FiLayers,
   FiUser,
 } from "react-icons/fi";
-import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
+/* Ajout de AreaChart et Area pour le graphique de fond */
+import {
+  LineChart,
+  Line,
+  ResponsiveContainer,
+  YAxis,
+  Tooltip,
+  AreaChart,
+  Area,
+  XAxis,
+} from "recharts";
 import { toast, Toaster } from "react-hot-toast";
 
 const DashboardAcheteur = () => {
@@ -38,9 +48,9 @@ const DashboardAcheteur = () => {
 
   const userId = localStorage.getItem("userId");
 
-  // --- LOGIQUE DE CALCUL DES STATS ---
+  // --- LOGIQUE DE CALCUL DES STATS (BASÉES SUR LA DATABASE) ---
   const calculatePortfolioStats = () => {
-    if (!user) return { totalActifs: 0, totalProfit: 0 };
+    if (!user) return { totalActifs: 0, totalProfit: 0, balance: 0 };
     const actionsValue =
       user.portfolio?.reduce((acc, item) => {
         const currentPrice = item.actionId?.price || 0;
@@ -51,10 +61,25 @@ const DashboardAcheteur = () => {
         return acc + Number(b.amount || 0);
       }, 0) || 0;
     const profit = Number(user.totalProfitGained || 0);
-    return { totalActifs: actionsValue + bondsValue, totalProfit: profit };
+    const balance = Number(user.balance || 0);
+
+    return {
+      totalActifs: actionsValue + bondsValue,
+      totalProfit: profit,
+      balance: balance,
+      totalGlobal: actionsValue + bondsValue + balance,
+    };
   };
 
   const stats = calculatePortfolioStats();
+
+  // --- PRÉPARATION DES DONNÉES DU GRAPHIQUE (DATABASE) ---
+  // On crée une courbe qui part de (Total - Profit) pour arriver au Total Actuel
+  const performanceData = [
+    { name: "Début", val: stats.totalGlobal - stats.totalProfit },
+    { name: "Progression", val: stats.totalGlobal - stats.totalProfit / 2 },
+    { name: "Actuel", val: stats.totalGlobal },
+  ];
 
   // --- CHARGEMENT DES DONNÉES ---
   const fetchData = useCallback(async () => {
@@ -69,7 +94,6 @@ const DashboardAcheteur = () => {
       setActions(actionsRes.data);
       setBonds(bondsRes.data || []);
 
-      // OPTIMISATION : Si l'email n'est pas en local, on le remet
       if (userRes.data.email && !localStorage.getItem("email")) {
         localStorage.setItem("email", userRes.data.email);
       }
@@ -103,7 +127,7 @@ const DashboardAcheteur = () => {
     }
   }, [activeChat, userId]);
 
-  // --- ACTIONS UTILISATEUR ---
+  // --- TOUTES LES ACTIONS UTILISATEUR (CONSERVÉES À 100%) ---
   const handleKycSubmit = async () => {
     if (!kycDoc) return toast.error("Veuillez entrer l'URL du document");
     try {
@@ -156,12 +180,8 @@ const DashboardAcheteur = () => {
     }
   };
 
-  // --- FONCTION DE DÉPÔT CORRIGÉE ---
   const handleDepositSubmit = async () => {
     const amount = parseFloat(depositAmount);
-
-    // Priorité à l'email chargé depuis la base de données (user.email)
-    // sinon on prend celui du localStorage
     const emailToUse = user?.email || localStorage.getItem("email");
     const nameToUse =
       user?.name || localStorage.getItem("name") || "Utilisateur";
@@ -279,7 +299,6 @@ const DashboardAcheteur = () => {
               </p>
             </div>
           </div>
-
           <button
             onClick={() => setShowDepositModal(true)}
             className="p-4 bg-blue-600 shadow-lg rounded-3xl hover:bg-blue-500 group"
@@ -291,56 +310,70 @@ const DashboardAcheteur = () => {
           </button>
         </div>
 
-        {/* GRILLE DES COMPTEURS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="flex items-center gap-4 px-6 py-4 border bg-slate-900 border-slate-800 rounded-3xl">
-            <div className="p-3 text-blue-500 bg-blue-500/10 rounded-2xl">
-              <FiActivity />
-            </div>
+        {/* --- NOUVEAU : GRAPHIQUE DE PERFORMANCE GLOBALE (DONNÉES DB) --- */}
+        <div className="w-full bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-500">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div>
-              <p className="text-[8px] text-slate-500 font-black uppercase tracking-tighter">
-                Mon Solde
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                Valeur totale du compte
               </p>
-              <p className="text-xl font-black">
-                {(user?.balance || 0).toLocaleString()}{" "}
-                <span className="text-sm text-blue-500">FCFA</span>
+              <h2 className="text-3xl font-black uppercase italic tracking-tighter">
+                {stats.totalGlobal.toLocaleString()}{" "}
+                <span className="text-blue-500 text-sm">FCFA</span>
+              </h2>
+              <div className="flex gap-4 mt-1">
+                <p className="text-[9px] font-bold text-emerald-500 uppercase">
+                  Cash: {stats.balance.toLocaleString()} F
+                </p>
+                <p className="text-[9px] font-bold text-blue-400 uppercase">
+                  Actifs: {stats.totalActifs.toLocaleString()} F
+                </p>
+              </div>
+            </div>
+            <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-2xl">
+              <p className="text-[9px] font-black text-emerald-500 uppercase leading-none mb-1">
+                Profit Gained
+              </p>
+              <p className="text-xl font-black text-emerald-400">
+                +{stats.totalProfit.toLocaleString()} F
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 px-6 py-4 border bg-slate-900 border-slate-800 rounded-3xl">
-            <div className="p-3 text-emerald-500 bg-emerald-500/10 rounded-2xl">
-              <FiLayers />
-            </div>
-            <div>
-              <p className="text-[8px] text-slate-500 font-black uppercase tracking-tighter">
-                Actifs Totaux
-              </p>
-              <p className="text-xl font-black">
-                {(stats.totalActifs || 0).toLocaleString()}{" "}
-                <span className="text-sm text-emerald-500">FCFA</span>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 px-6 py-4 border bg-slate-900 border-slate-800 rounded-3xl">
-            <div className="p-3 text-amber-500 bg-amber-500/10 rounded-2xl">
-              <FiTrendingUp />
-            </div>
-            <div>
-              <p className="text-[8px] text-slate-500 font-black uppercase tracking-tighter">
-                Profit Global
-              </p>
-              <p className="text-xl font-black">
-                {(stats.totalProfit || 0).toLocaleString()}{" "}
-                <span className="text-sm text-amber-500">FCFA</span>
-              </p>
-            </div>
+          <div className="h-44 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={performanceData}>
+                <defs>
+                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#0f172a",
+                    border: "1px solid #1e293b",
+                    borderRadius: "15px",
+                    fontSize: "12px",
+                  }}
+                  itemStyle={{ color: "#3b82f6", fontWeight: "900" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="val"
+                  stroke="#3b82f6"
+                  strokeWidth={4}
+                  fillOpacity={1}
+                  fill="url(#colorValue)"
+                  animationDuration={2000}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </header>
 
-      {/* --- NAVIGATION --- */}
+      {/* --- NAVIGATION (CONSERVÉE) --- */}
       <div className="flex gap-4 mb-8">
         <button
           onClick={() => setActiveTab("actions")}
@@ -364,7 +397,7 @@ const DashboardAcheteur = () => {
         </button>
       </div>
 
-      {/* --- KYC WARNING --- */}
+      {/* --- KYC WARNING (CONSERVÉ) --- */}
       {user?.kycStatus === "non_verifie" && (
         <div className="bg-orange-600/10 border border-orange-600/20 p-8 rounded-[2rem] mb-10">
           <div className="flex items-center gap-3 mb-4 text-orange-500">
@@ -377,7 +410,7 @@ const DashboardAcheteur = () => {
             <input
               type="text"
               placeholder="URL de votre pièce d'identité..."
-              className="flex-1 p-4 border bg-slate-950 border-slate-800 rounded-2xl focus:border-orange-500 outline-none"
+              className="flex-1 p-4 border bg-slate-950 border-slate-800 rounded-2xl focus:border-orange-500 outline-none text-white"
               onChange={(e) => setKycDoc(e.target.value)}
             />
             <button
@@ -390,7 +423,7 @@ const DashboardAcheteur = () => {
         </div>
       )}
 
-      {/* --- GRID D'ACTIFS --- */}
+      {/* --- GRID D'ACTIFS (CONSERVÉ) --- */}
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
         {activeTab === "actions"
           ? actions.map((action) => (
