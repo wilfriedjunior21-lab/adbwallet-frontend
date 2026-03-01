@@ -1,17 +1,31 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-//import ThemeToggle from "../components/ThemeToggle"; // Ajuste le chemin si nécessaire
+import api from "../api"; // Import de ton instance axios configurée
 import {
   FiPlusCircle,
   FiLogOut,
   FiBriefcase,
-  FiPieChart,
+  FiUser, // Ajouté pour l'icône profil
 } from "react-icons/fi";
 
 const NavbarActionnaire = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const userName = localStorage.getItem("name");
+  const userId = localStorage.getItem("userId");
+
+  // État pour stocker les infos du profil (notamment la photo)
+  const [userProfile, setUserProfile] = useState(null);
+
+  // Récupération du profil au chargement
+  useEffect(() => {
+    if (userId) {
+      api
+        .get(`/api/user/profile/${userId}`)
+        .then((res) => setUserProfile(res.data))
+        .catch((err) => console.error("Erreur chargement profil navbar", err));
+    }
+  }, [userId, location.pathname]); // Se rafraîchit si on change de page
 
   const handleLogout = () => {
     localStorage.clear();
@@ -22,16 +36,20 @@ const NavbarActionnaire = () => {
   return (
     <nav className="bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-900 p-4 sticky top-0 z-50 transition-colors duration-300">
       <div className="max-w-7xl mx-auto flex justify-between items-center">
-        {/* LOGO BUSINESS AVEC IMAGE */}
+        {/* LOGO BUSINESS AVEC IMAGE DYNAMIQUE */}
         <div className="flex items-center gap-4">
           <Link
             to="/dashboard-actionnaire"
             className="flex items-center gap-3 group"
           >
+            {/* On utilise ici le logo de l'utilisateur s'il existe, sinon le logo par défaut */}
             <img
-              src="/logo.png"
+              src={userProfile?.profilePic || "/logo.png"}
               alt="Logo"
-              className="w-10 h-10 rounded-full border border-blue-500/30 group-hover:border-blue-500 transition-all object-cover"
+              className="w-10 h-10 rounded-full border border-blue-500/30 group-hover:border-blue-500 transition-all object-cover bg-slate-100"
+              onError={(e) => {
+                e.target.src = "/logo.png";
+              }}
             />
             <span className="text-xl font-black italic uppercase tracking-tighter text-slate-900 dark:text-white">
               ADB<span className="text-blue-500">Business</span>
@@ -45,7 +63,7 @@ const NavbarActionnaire = () => {
 
         {/* ACTIONS SPECIFIQUES */}
         <div className="flex gap-3 items-center">
-          {/* LIEN : CRÉER OBLIGATION (CORRIGÉ ICI) */}
+          {/* LIEN : CRÉER OBLIGATION */}
           <Link
             to="/propose-bond"
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -72,6 +90,27 @@ const NavbarActionnaire = () => {
           </Link>
 
           <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800 mx-1" />
+
+          {/* --- NOUVEAU BOUTON : ACCÈS PROFIL --- */}
+          <Link
+            to="/profile"
+            className={`p-1.5 rounded-xl border transition-all flex items-center justify-center ${
+              location.pathname === "/profile"
+                ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20"
+                : "border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-500 hover:border-blue-400"
+            }`}
+            title="Mon Profil"
+          >
+            {userProfile?.profilePic ? (
+              <img
+                src={userProfile.profilePic}
+                className="w-6 h-6 rounded-lg object-cover"
+                alt="Mini Profil"
+              />
+            ) : (
+              <FiUser size={18} />
+            )}
+          </Link>
 
           {/* BOUTON DÉCONNEXION */}
           <button

@@ -11,6 +11,7 @@ import {
   FiX,
   FiCalendar,
   FiLayers,
+  FiUser,
 } from "react-icons/fi";
 import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from "recharts";
 import { toast, Toaster } from "react-hot-toast";
@@ -22,7 +23,7 @@ const DashboardAcheteur = () => {
   const [activeTab, setActiveTab] = useState("actions");
   const [kycDoc, setKycDoc] = useState("");
   const [buyQty, setBuyQty] = useState({});
-  const [bondInvestAmount, setBondInvestAmount] = useState({}); // NOUVEAU : État pour le montant des obligations
+  const [bondInvestAmount, setBondInvestAmount] = useState({});
   const [loading, setLoading] = useState(true);
 
   // --- ÉTATS POUR LE SUPPORT RÉEL ---
@@ -37,7 +38,7 @@ const DashboardAcheteur = () => {
 
   const userId = localStorage.getItem("userId");
 
-  // --- CHARGEMENT DES DONNÉES ---
+  // --- CHARGEMENT DES DONNÉES (ROUTES SANS /API CAR DÉJÀ DANS L'INSTANCE) ---
   const fetchData = useCallback(async () => {
     if (!userId) return;
     try {
@@ -114,19 +115,12 @@ const DashboardAcheteur = () => {
     }
   };
 
-  // --- CORRECTION : handleSubscribeBond envoie maintenant le montant ---
   const handleSubscribeBond = async (bondId) => {
     const amount = parseFloat(bondInvestAmount[bondId]);
-
-    if (!amount || amount <= 0) {
-      return toast.error("Veuillez saisir un montant valide à investir.");
-    }
-
-    if (!user || user.balance < amount) {
-      return toast.error(
-        `Solde insuffisant pour investir ${amount.toLocaleString()} F.`
-      );
-    }
+    if (!amount || amount <= 0)
+      return toast.error("Veuillez saisir un montant valide.");
+    if (!user || user.balance < amount)
+      return toast.error(`Solde insuffisant.`);
 
     try {
       const res = await api.post("/transactions/subscribe-bond", {
@@ -135,7 +129,7 @@ const DashboardAcheteur = () => {
         amount: amount,
       });
       toast.success(res.data.message || "Souscription réussie !");
-      setBondInvestAmount({ ...bondInvestAmount, [bondId]: "" }); // Reset input
+      setBondInvestAmount({ ...bondInvestAmount, [bondId]: "" });
       fetchData();
     } catch (err) {
       toast.error(err.response?.data?.error || "Erreur de souscription");
@@ -144,8 +138,7 @@ const DashboardAcheteur = () => {
 
   const handleDepositSubmit = async () => {
     const amount = parseFloat(depositAmount);
-    if (!amount || amount < 100)
-      return toast.error("Le montant minimum est de 100 FCFA");
+    if (!amount || amount < 100) return toast.error("Minimum 100 FCFA");
 
     setIsRedirecting(true);
     try {
@@ -156,11 +149,10 @@ const DashboardAcheteur = () => {
         name: localStorage.getItem("name"),
       });
       if (res.data.payment_url) {
-        toast.success("Redirection...");
         window.location.href = res.data.payment_url;
       }
     } catch (err) {
-      toast.error("Erreur lors de l'initialisation du dépôt");
+      toast.error("Erreur dépôt");
       setIsRedirecting(false);
     }
   };
@@ -190,7 +182,7 @@ const DashboardAcheteur = () => {
   }
 
   return (
-    <div className="max-w-6xl p-6 mx-auto text-white">
+    <div className="max-w-6xl p-6 mx-auto text-white pb-24">
       <Toaster position="top-right" />
 
       {/* --- MODALE DE DÉPÔT --- */}
@@ -224,7 +216,7 @@ const DashboardAcheteur = () => {
               <button
                 onClick={handleDepositSubmit}
                 disabled={isRedirecting}
-                className="w-full py-4 font-black tracking-widest text-white uppercase transition-all bg-blue-600 hover:bg-blue-500 rounded-2xl disabled:opacity-50"
+                className="w-full py-4 font-black tracking-widest text-white uppercase bg-blue-600 hover:bg-blue-500 rounded-2xl disabled:opacity-50"
               >
                 {isRedirecting ? "Redirection..." : "Confirmer le dépôt"}
               </button>
@@ -234,19 +226,32 @@ const DashboardAcheteur = () => {
       )}
 
       {/* --- HEADER --- */}
-      <header className="flex flex-col items-start justify-between gap-4 mb-10 md:flex-row md:items-end">
-        <div>
-          <h1 className="text-4xl italic font-black leading-none uppercase">
-            Marché <span className="italic text-blue-500">Live</span>
-          </h1>
-          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mt-2">
-            Trading d'actifs en temps réel
-          </p>
+      <header className="flex flex-col items-start justify-between gap-4 mb-10 md:flex-row md:items-center">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-full border-2 border-blue-500/30 p-1 bg-slate-800 overflow-hidden">
+            <img
+              src={
+                user?.profilePic ||
+                "https://ui-avatars.com/api/?name=" +
+                  localStorage.getItem("name")
+              }
+              className="w-full h-full rounded-full object-cover"
+              alt="Profil"
+            />
+          </div>
+          <div>
+            <h1 className="text-3xl italic font-black leading-none uppercase">
+              Marché <span className="text-blue-500">Live</span>
+            </h1>
+            <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mt-1">
+              Trader : {localStorage.getItem("name")}
+            </p>
+          </div>
         </div>
 
         {user && (
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-4 px-6 py-4 border shadow-2xl bg-slate-900 border-slate-800 rounded-3xl">
+            <div className="flex items-center gap-4 px-6 py-4 border bg-slate-900 border-slate-800 rounded-3xl">
               <div className="p-3 text-blue-500 bg-blue-500/10 rounded-2xl">
                 <FiActivity />
               </div>
@@ -254,7 +259,7 @@ const DashboardAcheteur = () => {
                 <p className="text-[8px] text-slate-500 font-black uppercase tracking-tighter">
                   Mon Solde
                 </p>
-                <p className="text-xl font-black text-white">
+                <p className="text-xl font-black">
                   {user.balance?.toLocaleString()}{" "}
                   <span className="text-sm text-blue-500">FCFA</span>
                 </p>
@@ -262,7 +267,7 @@ const DashboardAcheteur = () => {
             </div>
             <button
               onClick={() => setShowDepositModal(true)}
-              className="p-4 transition-all bg-blue-600 shadow-lg rounded-3xl hover:bg-blue-500 group"
+              className="p-4 bg-blue-600 shadow-lg rounded-3xl hover:bg-blue-500 group"
             >
               <FiPlusCircle
                 size={24}
@@ -277,7 +282,7 @@ const DashboardAcheteur = () => {
       <div className="flex gap-4 mb-8">
         <button
           onClick={() => setActiveTab("actions")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${
+          className={`px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${
             activeTab === "actions"
               ? "bg-blue-600 shadow-lg"
               : "bg-slate-900 border border-slate-800 text-slate-500"
@@ -287,7 +292,7 @@ const DashboardAcheteur = () => {
         </button>
         <button
           onClick={() => setActiveTab("bonds")}
-          className={`px-6 py-3 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${
+          className={`px-6 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all ${
             activeTab === "bonds"
               ? "bg-amber-600 shadow-lg"
               : "bg-slate-900 border border-slate-800 text-slate-500"
@@ -299,7 +304,7 @@ const DashboardAcheteur = () => {
 
       {/* --- KYC WARNING --- */}
       {user?.kycStatus === "non_verifie" && (
-        <div className="bg-orange-600/10 border border-orange-600/20 p-8 rounded-[2rem] mb-10 shadow-xl">
+        <div className="bg-orange-600/10 border border-orange-600/20 p-8 rounded-[2rem] mb-10">
           <div className="flex items-center gap-3 mb-4 text-orange-500">
             <FiAlertCircle size={24} />
             <h2 className="text-xl italic font-black uppercase">
@@ -310,12 +315,12 @@ const DashboardAcheteur = () => {
             <input
               type="text"
               placeholder="URL de votre pièce d'identité..."
-              className="flex-1 p-4 text-sm font-bold transition-all border outline-none bg-slate-950 border-slate-800 rounded-2xl focus:border-orange-500"
+              className="flex-1 p-4 border bg-slate-950 border-slate-800 rounded-2xl focus:border-orange-500 outline-none"
               onChange={(e) => setKycDoc(e.target.value)}
             />
             <button
               onClick={handleKycSubmit}
-              className="bg-orange-600 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-orange-500 transition-all shadow-lg"
+              className="bg-orange-600 px-8 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest"
             >
               Soumettre
             </button>
@@ -329,19 +334,36 @@ const DashboardAcheteur = () => {
           ? actions.map((action) => (
               <div
                 key={action._id}
-                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-blue-500/50 transition-all shadow-xl relative overflow-hidden"
+                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-blue-500/50 transition-all shadow-xl flex flex-col"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <h3 className="text-xl italic font-black tracking-tighter uppercase">
-                    {action.name}
-                  </h3>
-                  <span className="bg-emerald-500/10 text-emerald-500 px-4 py-1.5 rounded-xl text-xs font-black">
+                <div className="flex items-center gap-3 mb-4">
+                  {/* LOGO DE L'ACTIONNAIRE DYNAMIQUE */}
+                  <div className="w-10 h-10 rounded-full border border-blue-500/20 overflow-hidden bg-black flex items-center justify-center">
+                    {action.creatorId?.profilePic ? (
+                      <img
+                        src={action.creatorId.profilePic}
+                        className="w-full h-full object-cover"
+                        alt="Logo"
+                      />
+                    ) : (
+                      <FiUser className="text-slate-600" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg italic font-black uppercase leading-tight">
+                      {action.name}
+                    </h3>
+                    <p className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">
+                      Par {action.creatorId?.name || "Actionnaire"}
+                    </p>
+                  </div>
+                  <span className="bg-emerald-500/10 text-emerald-500 px-3 py-1.5 rounded-xl text-[10px] font-black">
                     {action.price?.toLocaleString()} F
                   </span>
                 </div>
 
                 {/* GRAPHE */}
-                <div className="w-full h-24 p-2 my-4 border bg-black/40 rounded-3xl border-white/5">
+                <div className="w-full h-24 p-2 my-2 border bg-black/40 rounded-3xl border-white/5">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={action.priceHistory || []}>
                       <Line
@@ -364,7 +386,7 @@ const DashboardAcheteur = () => {
                   </ResponsiveContainer>
                 </div>
 
-                <div className="space-y-3">
+                <div className="mt-auto space-y-3">
                   {user?.kycStatus === "valide" && (
                     <div className="flex items-center gap-2 p-2 border bg-slate-950 rounded-2xl border-slate-800">
                       <span className="text-[9px] font-black uppercase ml-3 text-slate-500">
@@ -394,7 +416,7 @@ const DashboardAcheteur = () => {
                         user?.kycStatus !== "valide" ||
                         action.availableQuantity <= 0
                       }
-                      className="flex-[2] py-4 bg-white text-black rounded-2xl font-black uppercase text-[10px] hover:bg-blue-600 hover:text-white transition-all disabled:opacity-30"
+                      className="flex-[2] py-4 bg-white text-black rounded-2xl font-black uppercase text-[10px] hover:bg-blue-600 hover:text-white disabled:opacity-30"
                     >
                       Acheter
                     </button>
@@ -404,9 +426,9 @@ const DashboardAcheteur = () => {
                           activeChat === action._id ? null : action._id
                         )
                       }
-                      className={`flex-1 rounded-2xl flex items-center justify-center transition-all ${
+                      className={`flex-1 rounded-2xl flex items-center justify-center ${
                         activeChat === action._id
-                          ? "bg-blue-600"
+                          ? "bg-blue-600 shadow-lg"
                           : "bg-slate-800 text-slate-400"
                       }`}
                     >
@@ -415,7 +437,6 @@ const DashboardAcheteur = () => {
                   </div>
                 </div>
 
-                {/* CHAT */}
                 {activeChat === action._id && (
                   <div className="pt-4 mt-4 border-t border-slate-800 animate-in slide-in-from-top-2">
                     <div className="mb-3 space-y-2 overflow-y-auto max-h-32 scrollbar-hide">
@@ -424,13 +445,13 @@ const DashboardAcheteur = () => {
                           key={idx}
                           className={`p-2 rounded-lg text-[10px] ${
                             msg.senderId === userId
-                              ? "bg-blue-600/20 border border-blue-500/30 ml-4"
+                              ? "bg-blue-600/20 border-blue-500/30 ml-4"
                               : "bg-slate-800 mr-4"
                           }`}
                         >
                           <p>{msg.content}</p>
                           {msg.reply && (
-                            <p className="text-emerald-400 mt-1 border-t border-white/5 pt-1">
+                            <p className="text-emerald-400 mt-1 pt-1 border-t border-white/5">
                               Réponse: {msg.reply}
                             </p>
                           )}
@@ -461,18 +482,18 @@ const DashboardAcheteur = () => {
           : bonds.map((bond) => (
               <div
                 key={bond._id}
-                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-amber-500/50 transition-all shadow-xl"
+                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-amber-500/50 shadow-xl flex flex-col"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="text-xl font-black italic uppercase text-amber-500">
+                    <h3 className="text-xl font-black italic uppercase text-amber-500 leading-tight">
                       {bond.titre}
                     </h3>
-                    <p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest">
-                      {bond.description?.substring(0, 30)}...
+                    <p className="text-slate-500 text-[9px] uppercase font-bold tracking-widest mt-1">
+                      {bond.description?.substring(0, 50)}...
                     </p>
                   </div>
-                  <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-1.5 rounded-xl border border-emerald-500/20">
+                  <span className="bg-emerald-500/10 text-emerald-500 text-[10px] font-black px-3 py-1.5 rounded-xl">
                     +{bond.tauxInteret}%
                   </span>
                 </div>
@@ -494,35 +515,34 @@ const DashboardAcheteur = () => {
                     </p>
                   </div>
                 </div>
-
-                {/* NOUVEL INPUT POUR LE MONTANT D'INVESTISSEMENT */}
-                {user?.kycStatus === "valide" && (
-                  <div className="mb-4 p-3 border bg-slate-950 rounded-2xl border-slate-800">
-                    <label className="text-[8px] font-black uppercase text-slate-500 block mb-1">
-                      Montant à investir
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="Ex: 10000"
-                      value={bondInvestAmount[bond._id] || ""}
-                      onChange={(e) =>
-                        setBondInvestAmount({
-                          ...bondInvestAmount,
-                          [bond._id]: e.target.value,
-                        })
-                      }
-                      className="w-full bg-transparent text-sm font-black text-amber-500 outline-none"
-                    />
-                  </div>
-                )}
-
-                <button
-                  onClick={() => handleSubscribeBond(bond._id)}
-                  disabled={user?.kycStatus !== "valide"}
-                  className="w-full bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 transition-all disabled:opacity-30"
-                >
-                  Investir maintenant
-                </button>
+                <div className="mt-auto">
+                  {user?.kycStatus === "valide" && (
+                    <div className="mb-4 p-3 border bg-slate-950 rounded-2xl border-slate-800">
+                      <label className="text-[8px] font-black uppercase text-slate-500 block mb-1">
+                        Montant à investir
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="Ex: 10000"
+                        value={bondInvestAmount[bond._id] || ""}
+                        onChange={(e) =>
+                          setBondInvestAmount({
+                            ...bondInvestAmount,
+                            [bond._id]: e.target.value,
+                          })
+                        }
+                        className="w-full bg-transparent text-sm font-black text-amber-500 outline-none"
+                      />
+                    </div>
+                  )}
+                  <button
+                    onClick={() => handleSubscribeBond(bond._id)}
+                    disabled={user?.kycStatus !== "valide"}
+                    className="w-full bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 shadow-lg"
+                  >
+                    Investir maintenant
+                  </button>
+                </div>
               </div>
             ))}
       </div>
