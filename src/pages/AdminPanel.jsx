@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import axios from "axios";
 import api from "../api";
 import {
   FiUsers,
@@ -28,20 +29,35 @@ const AdminPanel = () => {
   const [amountPerShare, setAmountPerShare] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Utilisation d'une ref pour suivre les requêtes en cours et éviter les collisions
+  const abortControllerRef = useRef(null);
+
   const fetchData = useCallback(async (isAutoRefresh = false) => {
+    // On annule la requête précédente si elle n'est pas finie avant d'en lancer une nouvelle
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
     try {
-      // CORRECTION : On enlève /api car il est déjà dans la baseURL de api.js
       const [uRes, aRes, tRes, bRes] = await Promise.all([
-        api.get("/admin/users"),
-        api.get("/admin/actions"),
-        api.get("/admin/transactions"),
-        api.get("/admin/bonds"),
+        api.get("/admin/users", { signal: abortControllerRef.current.signal }),
+        api.get("/admin/actions", {
+          signal: abortControllerRef.current.signal,
+        }),
+        api.get("/admin/transactions", {
+          signal: abortControllerRef.current.signal,
+        }),
+        api.get("/admin/bonds", { signal: abortControllerRef.current.signal }),
       ]);
       setUsers(uRes.data);
       setActions(aRes.data);
       setTransactions(tRes.data);
       setBonds(bRes.data || []);
     } catch (err) {
+      // Si l'erreur est juste une annulation (isCancel), on ne fait rien
+      if (axios.isCancel(err)) return;
+
       console.error("Erreur de rafraîchissement auto:", err);
       if (!isAutoRefresh) {
         toast.error("Erreur de chargement des données");
@@ -54,12 +70,14 @@ const AdminPanel = () => {
     const intervalId = setInterval(() => {
       fetchData(true);
     }, 5000);
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
+    };
   }, [fetchData]);
 
   const handleValidateKYC = async (id, status) => {
     try {
-      // CORRECTION : /admin au lieu de /api/admin
       await api.patch(`/admin/kyc/${id}`, { status });
       toast.success(`Utilisateur mis à jour : ${status}`);
       fetchData();
