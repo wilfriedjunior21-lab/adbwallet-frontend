@@ -11,7 +11,8 @@ import {
   FiMessageSquare,
   FiSend,
   FiPhone,
-  FiFileText, // Icône pour les obligations
+  FiFileText,
+  FiX,
 } from "react-icons/fi";
 import {
   AreaChart,
@@ -35,11 +36,17 @@ const DashboardActionnaire = () => {
   const [withdrawPhone, setWithdrawPhone] = useState("");
   const [transactions, setTransactions] = useState([]);
   const [mesActions, setMesActions] = useState([]);
-  const [mesObligations, setMesObligations] = useState([]); // Nouvel état
+  const [mesObligations, setMesObligations] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // États pour l'édition (Actions & Obligations)
   const [editingId, setEditingId] = useState(null);
+  const [editingObliId, setEditingObliId] = useState(null);
   const [editForm, setEditForm] = useState({ price: 0, description: "" });
+  const [editObliForm, setEditObliForm] = useState({
+    interestRate: 0,
+    description: "",
+  });
 
   const [messages, setMessages] = useState([]);
   const [replies, setReplies] = useState({});
@@ -56,13 +63,15 @@ const DashboardActionnaire = () => {
           api.get(`/transactions/user/${userId}`),
           api.get(`/actions`),
           api.get(`/messages/owner/${userId}`),
-          api.get(`/obligations/owner/${userId}`), // Route supposée pour vos obligations
+          api.get(`/obligations/owner/${userId}`),
         ]);
 
       setBalance(userRes.data.balance || 0);
       setTransactions(transRes.data || []);
       setMessages(messagesRes.data || []);
-      setMesObligations(obligationsRes.data || []);
+
+      const mesOblis = obligationsRes.data || [];
+      setMesObligations(mesOblis);
 
       const ventes = (transRes.data || []).filter((t) => t.type === "vente");
       const filteredActions = (actionsRes.data || []).filter(
@@ -73,7 +82,7 @@ const DashboardActionnaire = () => {
       setStats({
         nombreVentes: ventes.length,
         actionsCount: filteredActions.length,
-        obligationsCount: (obligationsRes.data || []).length,
+        obligationsCount: mesOblis.length,
       });
     } catch (err) {
       console.error("Erreur Dashboard:", err);
@@ -88,7 +97,7 @@ const DashboardActionnaire = () => {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // --- GESTION DES ACTIFS ---
+  // --- GESTION DES ACTIONS ---
   const startEdit = (action) => {
     setEditingId(action._id);
     setEditForm({ price: action.price, description: action.description || "" });
@@ -97,8 +106,28 @@ const DashboardActionnaire = () => {
   const handleUpdateAction = async (id) => {
     try {
       await api.patch(`/actions/${id}`, editForm);
-      toast.success("Actif mis à jour !");
+      toast.success("Action mise à jour !");
       setEditingId(null);
+      fetchData();
+    } catch (err) {
+      toast.error("Erreur lors de la modification");
+    }
+  };
+
+  // --- GESTION DES OBLIGATIONS (NOUVEAU) ---
+  const startEditObli = (obli) => {
+    setEditingObliId(obli._id);
+    setEditObliForm({
+      interestRate: obli.interestRate,
+      description: obli.description || "",
+    });
+  };
+
+  const handleUpdateObli = async (id) => {
+    try {
+      await api.patch(`/obligations/${id}`, editObliForm);
+      toast.success("Obligation mise à jour !");
+      setEditingObliId(null);
       fetchData();
     } catch (err) {
       toast.error("Erreur lors de la modification");
@@ -190,7 +219,7 @@ const DashboardActionnaire = () => {
             Espace <span className="text-blue-500">Business</span>
           </h1>
           <p className="mt-2 text-[10px] font-black tracking-widest uppercase text-slate-500">
-            Flux financier en temps réel
+            Flux financier en temps réel | ID: {userId?.substring(0, 8)}...
           </p>
         </header>
 
@@ -247,12 +276,12 @@ const DashboardActionnaire = () => {
           </div>
         </div>
 
-        {/* --- GRID MES ACTIFS (ACTIONS) --- */}
+        {/* --- GRID ACTIONS --- */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-8">
             <FiPackage className="text-blue-500" size={24} />
             <h2 className="text-xl italic font-black uppercase">
-              Actifs sous Gestion (Actions)
+              Actifs (Actions)
             </h2>
           </div>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -263,6 +292,14 @@ const DashboardActionnaire = () => {
               >
                 {editingId === action._id ? (
                   <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-bold text-blue-500">
+                        MODE ÉDITION
+                      </span>
+                      <button onClick={() => setEditingId(null)}>
+                        <FiX />
+                      </button>
+                    </div>
                     <div className="p-3 bg-black rounded-xl border border-slate-700">
                       <label className="text-[8px] font-black uppercase text-slate-500">
                         Prix unitaire
@@ -272,13 +309,16 @@ const DashboardActionnaire = () => {
                         className="w-full bg-transparent outline-none text-emerald-400 font-black"
                         value={editForm.price}
                         onChange={(e) =>
-                          setEditForm({ ...editForm, price: e.target.value })
+                          setEditForm({
+                            ...editForm,
+                            price: Number(e.target.value),
+                          })
                         }
                       />
                     </div>
                     <textarea
-                      placeholder="Description de l'actif..."
-                      className="w-full h-20 p-4 bg-black border outline-none border-slate-700 rounded-xl text-slate-300 text-xs"
+                      placeholder="Description..."
+                      className="w-full h-20 p-4 bg-black border border-slate-700 rounded-xl text-slate-300 text-xs"
                       value={editForm.description}
                       onChange={(e) =>
                         setEditForm({
@@ -289,15 +329,15 @@ const DashboardActionnaire = () => {
                     />
                     <button
                       onClick={() => handleUpdateAction(action._id)}
-                      className="w-full bg-emerald-600 py-3 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2 hover:bg-emerald-500"
+                      className="w-full bg-emerald-600 py-3 rounded-xl font-black uppercase text-[10px] flex items-center justify-center gap-2"
                     >
-                      <FiSave /> Enregistrer les modifications
+                      <FiSave /> Sauvegarder
                     </button>
                   </div>
                 ) : (
                   <div>
                     <div className="flex items-start justify-between mb-4">
-                      <h3 className="text-lg font-black uppercase tracking-tighter">
+                      <h3 className="text-lg font-black uppercase">
                         {action.name}
                       </h3>
                       <button
@@ -309,18 +349,16 @@ const DashboardActionnaire = () => {
                     </div>
                     <div className="flex items-end justify-between">
                       <div>
-                        <p className="text-2xl font-black text-white">
+                        <p className="text-2xl font-black">
                           {action.price?.toLocaleString()}{" "}
                           <span className="text-sm text-blue-500">F</span>
                         </p>
                         <p className="text-[9px] text-slate-500 uppercase font-black mt-1">
-                          {action.availableQuantity} parts disponibles au marché
+                          {action.availableQuantity} parts disponibles
                         </p>
                       </div>
-                      <div className="text-right">
-                        <div className="text-[8px] font-black bg-white/5 px-2 py-1 rounded text-slate-400 uppercase">
-                          Live
-                        </div>
+                      <div className="bg-white/5 px-2 py-1 rounded text-[8px] font-black text-slate-400 uppercase">
+                        Live
                       </div>
                     </div>
                   </div>
@@ -330,7 +368,7 @@ const DashboardActionnaire = () => {
           </div>
         </div>
 
-        {/* --- SECTION OBLIGATIONS (NOUVEAU) --- */}
+        {/* --- SECTION OBLIGATIONS --- */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-8">
             <FiFileText className="text-emerald-500" size={24} />
@@ -341,55 +379,87 @@ const DashboardActionnaire = () => {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             {mesObligations.length === 0 ? (
               <div className="col-span-2 p-10 border border-dashed border-slate-800 rounded-[2rem] text-center text-slate-600 text-xs italic">
-                Aucune obligation active détectée.
+                Aucune obligation active.
               </div>
             ) : (
               mesObligations.map((obli) => (
                 <div
                   key={obli._id}
-                  className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] border-l-4 border-l-emerald-500 shadow-xl"
+                  className="bg-slate-900 border border-slate-800 p-6 rounded-[2rem] border-l-4 border-l-emerald-500"
                 >
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-lg font-black uppercase tracking-tighter">
-                        {obli.name}
-                      </h3>
-                      <span className="inline-block mt-1 text-[8px] bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded-full font-black uppercase tracking-widest">
-                        Taux Annuel: {obli.interestRate}%
-                      </span>
+                  {editingObliId === obli._id ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-black rounded-xl border border-slate-700">
+                        <label className="text-[8px] font-black uppercase text-slate-500">
+                          Taux d'intérêt (%)
+                        </label>
+                        <input
+                          type="number"
+                          className="w-full bg-transparent outline-none text-emerald-400 font-black"
+                          value={editObliForm.interestRate}
+                          onChange={(e) =>
+                            setEditObliForm({
+                              ...editObliForm,
+                              interestRate: Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <button
+                        onClick={() => handleUpdateObli(obli._id)}
+                        className="w-full bg-emerald-600 py-3 rounded-xl font-black text-[10px] uppercase flex items-center justify-center gap-2"
+                      >
+                        <FiSave /> Mettre à jour le taux
+                      </button>
+                      <button
+                        onClick={() => setEditingObliId(null)}
+                        className="w-full text-[8px] uppercase font-black text-slate-500"
+                      >
+                        Annuler
+                      </button>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[8px] text-slate-500 font-black uppercase">
-                        Échéance
-                      </p>
-                      <p className="text-xs font-black">
-                        {new Date(obli.maturityDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 mt-6">
-                    <div className="bg-black/40 p-3 rounded-2xl border border-slate-800/50">
-                      <p className="text-[8px] text-slate-500 uppercase font-black mb-1">
-                        Capital
-                      </p>
-                      <p className="text-lg font-black text-white">
-                        {obli.principalAmount?.toLocaleString()} F
-                      </p>
-                    </div>
-                    <div className="bg-black/40 p-3 rounded-2xl border border-slate-800/50">
-                      <p className="text-[8px] text-slate-500 uppercase font-black mb-1">
-                        Intérêts dûs
-                      </p>
-                      <p className="text-lg font-black text-emerald-500">
-                        {(
-                          (obli.principalAmount * obli.interestRate) /
-                          100
-                        ).toLocaleString()}{" "}
-                        F
-                      </p>
-                    </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h3 className="text-lg font-black uppercase">
+                            {obli.name}
+                          </h3>
+                          <span className="inline-block mt-1 text-[8px] bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded-full font-black uppercase">
+                            Taux: {obli.interestRate}%
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => startEditObli(obli)}
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-emerald-600 transition-colors"
+                        >
+                          <FiEdit2 size={14} />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 mt-6">
+                        <div className="bg-black/40 p-3 rounded-2xl border border-slate-800/50">
+                          <p className="text-[8px] text-slate-500 uppercase font-black mb-1">
+                            Capital
+                          </p>
+                          <p className="text-lg font-black">
+                            {obli.principalAmount?.toLocaleString()} F
+                          </p>
+                        </div>
+                        <div className="bg-black/40 p-3 rounded-2xl border border-slate-800/50">
+                          <p className="text-[8px] text-slate-500 uppercase font-black mb-1">
+                            Intérêts dûs
+                          </p>
+                          <p className="text-lg font-black text-emerald-500">
+                            {(
+                              (obli.principalAmount * obli.interestRate) /
+                              100
+                            ).toLocaleString()}{" "}
+                            F
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))
             )}
@@ -405,11 +475,9 @@ const DashboardActionnaire = () => {
                 Support Clients
               </h2>
             </div>
-            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-4 scrollbar-hide">
+            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 scrollbar-hide">
               {messages.length === 0 && (
-                <p className="text-slate-600 italic text-sm">
-                  Aucun message pour le moment.
-                </p>
+                <p className="text-slate-600 italic text-sm">Aucun message.</p>
               )}
               {messages.map((msg) => (
                 <div
@@ -424,9 +492,7 @@ const DashboardActionnaire = () => {
                       {new Date(msg.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="mb-4 text-sm text-slate-300 font-medium">
-                    "{msg.content}"
-                  </p>
+                  <p className="mb-4 text-sm text-slate-300">"{msg.content}"</p>
                   {msg.reply ? (
                     <div className="p-3 text-[11px] border-l-2 bg-emerald-500/5 text-slate-400 border-emerald-500 rounded-r-xl italic">
                       <span className="text-[8px] font-black text-emerald-500 uppercase block mb-1">
@@ -438,7 +504,7 @@ const DashboardActionnaire = () => {
                     <div className="flex gap-2">
                       <input
                         type="text"
-                        placeholder="Répondre au client..."
+                        placeholder="Répondre..."
                         className="flex-1 p-3 text-xs bg-black border rounded-2xl outline-none border-slate-800 focus:border-purple-500"
                         value={replies[msg._id] || ""}
                         onChange={(e) =>
@@ -447,7 +513,7 @@ const DashboardActionnaire = () => {
                       />
                       <button
                         onClick={() => handleSendReply(msg._id)}
-                        className="p-4 bg-purple-600 rounded-2xl hover:bg-purple-500 transition-colors"
+                        className="p-4 bg-purple-600 rounded-2xl hover:bg-purple-500"
                       >
                         <FiSend size={16} />
                       </button>
@@ -458,8 +524,9 @@ const DashboardActionnaire = () => {
             </div>
           </div>
 
+          {/* SIDEBAR STATS */}
           <div className="space-y-6">
-            <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] flex flex-col justify-center items-center text-center">
+            <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] text-center">
               <p className="text-[10px] font-black uppercase text-slate-500 mb-2">
                 Solde Retirable
               </p>
@@ -474,7 +541,7 @@ const DashboardActionnaire = () => {
               <div>
                 <h2 className="text-2xl font-black">{stats.nombreVentes}</h2>
                 <p className="text-[9px] font-black uppercase text-slate-500">
-                  Ventes réalisées
+                  Ventes
                 </p>
               </div>
             </div>
@@ -487,7 +554,7 @@ const DashboardActionnaire = () => {
                   {stats.obligationsCount}
                 </h2>
                 <p className="text-[9px] font-black uppercase text-slate-500">
-                  Obligations Actives
+                  Obligations
                 </p>
               </div>
             </div>
@@ -496,30 +563,25 @@ const DashboardActionnaire = () => {
 
         {/* --- RETRAIT & HISTORIQUE --- */}
         <div className="grid grid-cols-1 gap-8 pb-20 lg:grid-cols-2">
-          <div className="bg-gradient-to-br from-slate-900 to-black border border-slate-800 p-10 rounded-[3rem] shadow-2xl">
-            <h3 className="mb-2 text-2xl italic font-black uppercase tracking-tighter">
-              Retrait de fonds
+          <div className="bg-gradient-to-br from-slate-900 to-black border border-slate-800 p-10 rounded-[3rem]">
+            <h3 className="text-2xl italic font-black uppercase mb-8">
+              Retrait
             </h3>
-            <p className="mb-8 text-[9px] font-black uppercase text-slate-500 tracking-widest">
-              Configuration du transfert mobile
-            </p>
             <form onSubmit={handleWithdraw} className="space-y-4">
               <input
                 type="number"
                 placeholder="Montant (FCFA)"
-                className="w-full p-5 text-xl font-black bg-black border outline-none border-slate-800 rounded-3xl focus:border-blue-500"
+                className="w-full p-5 text-xl font-black bg-black border border-slate-800 rounded-3xl outline-none focus:border-blue-500"
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
                 required
               />
               <div className="relative">
-                <span className="absolute -translate-y-1/2 left-5 top-1/2 text-slate-500">
-                  <FiPhone size={20} />
-                </span>
+                <FiPhone className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500" />
                 <input
                   type="tel"
                   placeholder="Numéro Mobile Money"
-                  className="w-full p-5 text-lg font-black bg-black border outline-none pl-14 border-slate-800 rounded-3xl focus:border-emerald-500"
+                  className="w-full p-5 pl-14 text-lg font-black bg-black border border-slate-800 rounded-3xl outline-none focus:border-emerald-500"
                   value={withdrawPhone}
                   onChange={(e) => setWithdrawPhone(e.target.value)}
                   required
@@ -527,27 +589,28 @@ const DashboardActionnaire = () => {
               </div>
               <button
                 type="submit"
-                className="w-full bg-blue-600 py-5 rounded-3xl font-black uppercase text-[10px] tracking-widest hover:bg-blue-500 transition-all flex items-center justify-center gap-3"
+                className="w-full bg-blue-600 py-5 rounded-3xl font-black uppercase text-[10px] flex items-center justify-center gap-3 hover:bg-blue-500"
               >
                 Initier le virement <FiArrowUpRight size={18} />
               </button>
             </form>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 rounded-[3rem] overflow-hidden shadow-2xl flex flex-col">
-            <div className="p-6 border-b border-slate-800 bg-slate-800/20 uppercase text-[10px] font-black text-slate-400 tracking-widest">
-              Journal des flux financiers
+          {/* HISTORIQUE */}
+          <div className="bg-slate-900 border border-slate-800 rounded-[3rem] overflow-hidden flex flex-col">
+            <div className="p-6 bg-slate-800/20 uppercase text-[10px] font-black text-slate-400">
+              Flux financiers
             </div>
             <div className="flex-1 overflow-y-auto max-h-[400px] scrollbar-hide">
               {transactions.length === 0 && (
-                <div className="p-10 text-center text-slate-600 text-xs">
-                  Aucune transaction enregistrée
+                <div className="p-10 text-center text-slate-600 text-xs italic">
+                  Aucune transaction.
                 </div>
               )}
               {transactions.map((t) => (
                 <div
                   key={t._id}
-                  className="flex items-center justify-between p-6 border-b border-slate-800/50 hover:bg-white/5 transition-colors"
+                  className="flex items-center justify-between p-6 border-b border-slate-800/50 hover:bg-white/5"
                 >
                   <div className="flex items-center gap-4">
                     <div
@@ -558,20 +621,20 @@ const DashboardActionnaire = () => {
                       }`}
                     >
                       {t.type === "vente" || t.type === "coupon" ? (
-                        <FiTrendingUp size={18} />
+                        <FiTrendingUp />
                       ) : (
-                        <FiArrowUpRight size={18} />
+                        <FiArrowUpRight />
                       )}
                     </div>
                     <div>
                       <p className="text-xs font-black uppercase">
                         {t.type === "vente"
-                          ? "Revenu Vente"
+                          ? "Vente"
                           : t.type === "coupon"
-                          ? "Coupon Oblig."
-                          : "Retrait Cash"}
+                          ? "Coupon"
+                          : "Retrait"}
                       </p>
-                      <p className="text-[8px] text-slate-500 font-bold uppercase tracking-tighter">
+                      <p className="text-[8px] text-slate-500">
                         {new Date(t.date).toLocaleString()}
                       </p>
                     </div>
