@@ -38,7 +38,35 @@ const DashboardAcheteur = () => {
 
   const userId = localStorage.getItem("userId");
 
-  // --- CHARGEMENT DES DONNÉES (ROUTES SANS /API CAR DÉJÀ DANS L'INSTANCE) ---
+  // --- LOGIQUE DE CALCUL DES STATS (AJOUTÉ) ---
+  const calculatePortfolioStats = () => {
+    if (!user) return { totalActifs: 0, totalProfit: 0 };
+
+    // 1. Valeur des actions (Quantité * Prix actuel)
+    const actionsValue =
+      user.portfolio?.reduce((acc, item) => {
+        const currentPrice = item.actionId?.price || 0;
+        return acc + Number(item.quantity || 0) * Number(currentPrice);
+      }, 0) || 0;
+
+    // 2. Valeur des obligations (Somme des montants investis)
+    const bondsValue =
+      user.bonds?.reduce((acc, b) => {
+        return acc + Number(b.amount || 0);
+      }, 0) || 0;
+
+    // 3. Profit Global (Récupéré depuis la DB ou calculé)
+    const profit = Number(user.totalProfitGained || 0);
+
+    return {
+      totalActifs: actionsValue + bondsValue,
+      totalProfit: profit,
+    };
+  };
+
+  const stats = calculatePortfolioStats();
+
+  // --- CHARGEMENT DES DONNÉES ---
   const fetchData = useCallback(async () => {
     if (!userId) return;
     try {
@@ -225,57 +253,89 @@ const DashboardAcheteur = () => {
         </div>
       )}
 
-      {/* --- HEADER --- */}
-      <header className="flex flex-col items-start justify-between gap-4 mb-10 md:flex-row md:items-center">
-        <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full border-2 border-blue-500/30 p-1 bg-slate-800 overflow-hidden">
-            <img
-              src={
-                user?.profilePic ||
-                "https://ui-avatars.com/api/?name=" +
-                  localStorage.getItem("name")
-              }
-              className="w-full h-full rounded-full object-cover"
-              alt="Profil"
+      {/* --- HEADER AVEC STATS CORRIGÉES --- */}
+      <header className="flex flex-col gap-8 mb-10">
+        <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full border-2 border-blue-500/30 p-1 bg-slate-800 overflow-hidden">
+              <img
+                src={
+                  user?.profilePic ||
+                  "https://ui-avatars.com/api/?name=" +
+                    localStorage.getItem("name")
+                }
+                className="w-full h-full rounded-full object-cover"
+                alt="Profil"
+              />
+            </div>
+            <div>
+              <h1 className="text-3xl italic font-black leading-none uppercase">
+                Marché <span className="text-blue-500">Live</span>
+              </h1>
+              <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mt-1">
+                Trader : {localStorage.getItem("name")}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowDepositModal(true)}
+            className="p-4 bg-blue-600 shadow-lg rounded-3xl hover:bg-blue-500 group"
+          >
+            <FiPlusCircle
+              size={24}
+              className="group-hover:rotate-90 transition-transform"
             />
-          </div>
-          <div>
-            <h1 className="text-3xl italic font-black leading-none uppercase">
-              Marché <span className="text-blue-500">Live</span>
-            </h1>
-            <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mt-1">
-              Trader : {localStorage.getItem("name")}
-            </p>
-          </div>
+          </button>
         </div>
 
-        {user && (
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-4 px-6 py-4 border bg-slate-900 border-slate-800 rounded-3xl">
-              <div className="p-3 text-blue-500 bg-blue-500/10 rounded-2xl">
-                <FiActivity />
-              </div>
-              <div>
-                <p className="text-[8px] text-slate-500 font-black uppercase tracking-tighter">
-                  Mon Solde
-                </p>
-                <p className="text-xl font-black">
-                  {user.balance?.toLocaleString()}{" "}
-                  <span className="text-sm text-blue-500">FCFA</span>
-                </p>
-              </div>
+        {/* GRILLE DES COMPTEURS (SOLDE, ACTIFS, PROFIT) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center gap-4 px-6 py-4 border bg-slate-900 border-slate-800 rounded-3xl">
+            <div className="p-3 text-blue-500 bg-blue-500/10 rounded-2xl">
+              <FiActivity />
             </div>
-            <button
-              onClick={() => setShowDepositModal(true)}
-              className="p-4 bg-blue-600 shadow-lg rounded-3xl hover:bg-blue-500 group"
-            >
-              <FiPlusCircle
-                size={24}
-                className="group-hover:rotate-90 transition-transform"
-              />
-            </button>
+            <div>
+              <p className="text-[8px] text-slate-500 font-black uppercase tracking-tighter">
+                Mon Solde
+              </p>
+              <p className="text-xl font-black">
+                {(user?.balance || 0).toLocaleString()}{" "}
+                <span className="text-sm text-blue-500">FCFA</span>
+              </p>
+            </div>
           </div>
-        )}
+
+          <div className="flex items-center gap-4 px-6 py-4 border bg-slate-900 border-slate-800 rounded-3xl">
+            <div className="p-3 text-emerald-500 bg-emerald-500/10 rounded-2xl">
+              <FiLayers />
+            </div>
+            <div>
+              <p className="text-[8px] text-slate-500 font-black uppercase tracking-tighter">
+                Actifs Totaux
+              </p>
+              <p className="text-xl font-black">
+                {(stats.totalActifs || 0).toLocaleString()}{" "}
+                <span className="text-sm text-emerald-500">FCFA</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 px-6 py-4 border bg-slate-900 border-slate-800 rounded-3xl">
+            <div className="p-3 text-amber-500 bg-amber-500/10 rounded-2xl">
+              <FiTrendingUp />
+            </div>
+            <div>
+              <p className="text-[8px] text-slate-500 font-black uppercase tracking-tighter">
+                Profit Global
+              </p>
+              <p className="text-xl font-black">
+                {(stats.totalProfit || 0).toLocaleString()}{" "}
+                <span className="text-sm text-amber-500">FCFA</span>
+              </p>
+            </div>
+          </div>
+        </div>
       </header>
 
       {/* --- NAVIGATION --- */}
@@ -337,7 +397,6 @@ const DashboardAcheteur = () => {
                 className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-blue-500/50 transition-all shadow-xl flex flex-col"
               >
                 <div className="flex items-center gap-3 mb-4">
-                  {/* LOGO DE L'ACTIONNAIRE DYNAMIQUE */}
                   <div className="w-10 h-10 rounded-full border border-blue-500/20 overflow-hidden bg-black flex items-center justify-center">
                     {action.creatorId?.profilePic ? (
                       <img
@@ -362,7 +421,6 @@ const DashboardAcheteur = () => {
                   </span>
                 </div>
 
-                {/* GRAPHE */}
                 <div className="w-full h-24 p-2 my-2 border bg-black/40 rounded-3xl border-white/5">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={action.priceHistory || []}>
