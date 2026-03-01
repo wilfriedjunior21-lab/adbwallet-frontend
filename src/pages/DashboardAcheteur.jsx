@@ -38,30 +38,20 @@ const DashboardAcheteur = () => {
 
   const userId = localStorage.getItem("userId");
 
-  // --- LOGIQUE DE CALCUL DES STATS (AJOUTÉ) ---
+  // --- LOGIQUE DE CALCUL DES STATS ---
   const calculatePortfolioStats = () => {
     if (!user) return { totalActifs: 0, totalProfit: 0 };
-
-    // 1. Valeur des actions (Quantité * Prix actuel)
     const actionsValue =
       user.portfolio?.reduce((acc, item) => {
         const currentPrice = item.actionId?.price || 0;
         return acc + Number(item.quantity || 0) * Number(currentPrice);
       }, 0) || 0;
-
-    // 2. Valeur des obligations (Somme des montants investis)
     const bondsValue =
       user.bonds?.reduce((acc, b) => {
         return acc + Number(b.amount || 0);
       }, 0) || 0;
-
-    // 3. Profit Global (Récupéré depuis la DB ou calculé)
     const profit = Number(user.totalProfitGained || 0);
-
-    return {
-      totalActifs: actionsValue + bondsValue,
-      totalProfit: profit,
-    };
+    return { totalActifs: actionsValue + bondsValue, totalProfit: profit };
   };
 
   const stats = calculatePortfolioStats();
@@ -78,6 +68,11 @@ const DashboardAcheteur = () => {
       setUser(userRes.data);
       setActions(actionsRes.data);
       setBonds(bondsRes.data || []);
+
+      // OPTIMISATION : Si l'email n'est pas en local, on le remet
+      if (userRes.data.email && !localStorage.getItem("email")) {
+        localStorage.setItem("email", userRes.data.email);
+      }
     } catch (err) {
       console.error("Erreur de chargement", err);
     } finally {
@@ -123,13 +118,11 @@ const DashboardAcheteur = () => {
   const handleBuy = async (actionId, price) => {
     const qty = buyQty[actionId] || 1;
     const totalCost = price * qty;
-
     if (!user || user.balance < totalCost) {
       return toast.error(
         `Solde insuffisant (${totalCost.toLocaleString()} F requis)`
       );
     }
-
     try {
       const res = await api.post("/transactions/buy", {
         userId,
@@ -149,7 +142,6 @@ const DashboardAcheteur = () => {
       return toast.error("Veuillez saisir un montant valide.");
     if (!user || user.balance < amount)
       return toast.error(`Solde insuffisant.`);
-
     try {
       const res = await api.post("/transactions/subscribe-bond", {
         userId,
@@ -164,45 +156,38 @@ const DashboardAcheteur = () => {
     }
   };
 
+  // --- FONCTION DE DÉPÔT CORRIGÉE ---
   const handleDepositSubmit = async () => {
     const amount = parseFloat(depositAmount);
 
-    // 1. Récupération sécurisée des infos
-    const storageEmail = localStorage.getItem("email");
-    const storageName = localStorage.getItem("name");
+    // Priorité à l'email chargé depuis la base de données (user.email)
+    // sinon on prend celui du localStorage
+    const emailToUse = user?.email || localStorage.getItem("email");
+    const nameToUse =
+      user?.name || localStorage.getItem("name") || "Utilisateur";
 
-    // 2. Vérification stricte avant l'envoi
     if (!amount || amount < 100) return toast.error("Minimum 100 FCFA");
-    if (!userId)
-      return toast.error(
-        "Erreur : ID utilisateur introuvable. Reconnectez-vous."
-      );
-    if (!storageEmail)
-      return toast.error(
-        "Erreur : Email manquant. Veuillez compléter votre profil."
-      );
+    if (!userId) return toast.error("Session expirée, reconnectez-vous.");
+    if (!emailToUse)
+      return toast.error("Email introuvable. Veuillez rafraîchir la page.");
 
     setIsRedirecting(true);
     try {
       const res = await api.post("/payments/paymooney/init", {
-        userId: userId, // On s'assure que c'est bien l'ID
+        userId: userId,
         amount: amount,
-        email: storageEmail, // On envoie la variable récupérée
-        name: storageName || "Utilisateur",
+        email: emailToUse,
+        name: nameToUse,
       });
-
       if (res.data.payment_url) {
         window.location.href = res.data.payment_url;
       }
     } catch (err) {
-      // Affiche l'erreur précise renvoyée par le serveur
-      const errorMsg =
-        err.response?.data?.error ||
-        "Erreur de connexion au service de paiement";
-      toast.error(errorMsg);
+      toast.error(err.response?.data?.error || "Erreur lors du dépôt");
       setIsRedirecting(false);
     }
   };
+
   const handleSendMessage = async (actionId, receiverId) => {
     if (!newMessage.trim()) return;
     try {
@@ -271,7 +256,7 @@ const DashboardAcheteur = () => {
         </div>
       )}
 
-      {/* --- HEADER AVEC STATS CORRIGÉES --- */}
+      {/* --- HEADER --- */}
       <header className="flex flex-col gap-8 mb-10">
         <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <div className="flex items-center gap-4">
@@ -279,8 +264,7 @@ const DashboardAcheteur = () => {
               <img
                 src={
                   user?.profilePic ||
-                  "https://ui-avatars.com/api/?name=" +
-                    localStorage.getItem("name")
+                  "https://ui-avatars.com/api/?name=" + (user?.name || "User")
                 }
                 className="w-full h-full rounded-full object-cover"
                 alt="Profil"
@@ -291,7 +275,7 @@ const DashboardAcheteur = () => {
                 Marché <span className="text-blue-500">Live</span>
               </h1>
               <p className="text-slate-500 text-[9px] font-black uppercase tracking-widest mt-1">
-                Trader : {localStorage.getItem("name")}
+                Trader : {user?.name || "Chargement..."}
               </p>
             </div>
           </div>
@@ -307,7 +291,7 @@ const DashboardAcheteur = () => {
           </button>
         </div>
 
-        {/* GRILLE DES COMPTEURS (SOLDE, ACTIFS, PROFIT) */}
+        {/* GRILLE DES COMPTEURS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center gap-4 px-6 py-4 border bg-slate-900 border-slate-800 rounded-3xl">
             <div className="p-3 text-blue-500 bg-blue-500/10 rounded-2xl">
