@@ -40,6 +40,7 @@ const Wallet = () => {
   const [chartData, setChartData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("deposit");
+  const [userEmail, setUserEmail] = useState(""); // Pour PayMooney
 
   const userId = localStorage.getItem("userId");
   const userName = localStorage.getItem("userName") || "Utilisateur";
@@ -47,24 +48,31 @@ const Wallet = () => {
   const loadWalletData = useCallback(async () => {
     if (!userId) return;
     try {
-      const [balanceRes, transRes] = await Promise.all([
+      // On récupère aussi les infos utilisateur pour l'email
+      const [balanceRes, transRes, userRes] = await Promise.all([
         api.get(`/users/${userId}/balance`),
         api.get(`/transactions/user/${userId}`),
+        api.get(`/user/${userId}`), // Route pour choper l'email
       ]);
 
-      const allTrans = transRes.data;
-      setBalance(balanceRes.data.balance);
-      setTransactions(allTrans);
+      const allTrans = transRes.data || [];
+      const currentBalance = Number(balanceRes.data.balance || 0);
 
+      setBalance(currentBalance);
+      setTransactions(allTrans);
+      setUserEmail(userRes.data?.email || "");
+
+      // --- LOGIQUE DU GRAPHIQUE SÉCURISÉE ---
       const sortedForChart = [...allTrans].sort(
         (a, b) => new Date(a.date) - new Date(b.date)
       );
       let runningBalance = 0;
       const history = sortedForChart.map((t) => {
         if (t.status === "valide") {
+          const tAmount = Number(t.amount || 0);
           if (["depot", "vente", "dividende"].includes(t.type))
-            runningBalance += t.amount;
-          if (["achat", "retrait"].includes(t.type)) runningBalance -= t.amount;
+            runningBalance += tAmount;
+          if (["achat", "retrait"].includes(t.type)) runningBalance -= tAmount;
         }
         return {
           date: new Date(t.date).toLocaleDateString(undefined, {
@@ -76,14 +84,16 @@ const Wallet = () => {
       });
       setChartData(history);
 
+      // --- CALCULS ACTIFS ET PROFIT (ANTI-NaN) ---
       let currentPortfolioValue = 0;
       let accumulatedProfit = 0;
 
       allTrans.forEach((t) => {
         if (t.type === "achat" && t.actionId && t.status === "valide") {
-          const prixActuel = t.actionId.price;
-          const prixAchatTotal = t.amount;
-          const valeurActuelle = t.quantity * prixActuel;
+          const prixActuel = Number(t.actionId.price || 0);
+          const prixAchatTotal = Number(t.amount || 0);
+          const quantite = Number(t.quantity || 0);
+          const valeurActuelle = quantite * prixActuel;
 
           currentPortfolioValue += valeurActuelle;
           accumulatedProfit += valeurActuelle - prixAchatTotal;
@@ -94,7 +104,7 @@ const Wallet = () => {
       setTotalProfit(accumulatedProfit);
     } catch (err) {
       console.error("Erreur Wallet:", err);
-      toast.error("Impossible de charger les données");
+      // toast.error("Impossible de charger les données");
     } finally {
       setLoading(false);
     }
@@ -106,52 +116,36 @@ const Wallet = () => {
     return () => clearInterval(interval);
   }, [loadWalletData]);
 
-  // Gardé en mémoire pour la logique API (même si le formulaire est masqué)
+  // --- LOGIQUE DE DÉPÔT PAYMOONEY (CORRIGÉE) ---
   const handleDeposit = async (e) => {
     e.preventDefault();
-    if (!amount || Number(amount) < 100) {
+    const depAmount = Number(amount);
+
+    if (!depAmount || depAmount < 100) {
       return toast.error("Le montant minimum est de 100 F CFA");
     }
-    if (!phone) {
-      return toast.error("Veuillez entrer votre numéro de paiement");
+
+    // On utilise l'email récupéré ou celui du storage
+    const emailToUse = userEmail || localStorage.getItem("email");
+    if (!emailToUse) {
+      return toast.error("Email manquant. Veuillez rafraîchir la page.");
     }
 
     const loadingToast = toast.loading("Redirection vers PayMooney...");
 
     try {
-      const response = await api.post("/transactions/paymooney/pay", {
+      // Utilisation de la route sécurisée qui demande userId, amount, email
+      const response = await api.post("/payments/paymooney/init", {
         userId,
-        amount: Number(amount),
-        phone: phone,
+        amount: depAmount,
+        email: emailToUse,
+        name: userName,
       });
 
       toast.dismiss(loadingToast);
 
       if (response.data.payment_url) {
         window.location.href = response.data.payment_url;
-      } else {
-        toast.success("Paiement initié ! Suivez les instructions PayMooney.");
-        const { referenceId } = response.data;
-
-        const checkStatus = setInterval(async () => {
-          try {
-            const statusRes = await api.get(
-              `/transactions/paymooney/status/${referenceId}`
-            );
-            if (statusRes.data.status === "SUCCESSFUL") {
-              clearInterval(checkStatus);
-              toast.success("Dépôt validé !");
-              loadWalletData();
-              setAmount("");
-              setPhone("");
-            } else if (statusRes.data.status === "FAILED") {
-              clearInterval(checkStatus);
-              toast.error("Le paiement a échoué.");
-            }
-          } catch (err) {
-            console.error("Erreur polling", err);
-          }
-        }, 5000);
       }
     } catch (err) {
       toast.dismiss(loadingToast);
@@ -161,10 +155,11 @@ const Wallet = () => {
 
   const handleWithdraw = async (e) => {
     e.preventDefault();
-    if (!amount || Number(amount) < 1000) {
+    const drawAmount = Number(amount);
+    if (!drawAmount || drawAmount < 1000) {
       return toast.error("Le montant minimum de retrait est de 1000 F CFA");
     }
-    if (Number(amount) > balance) {
+    if (drawAmount > balance) {
       return toast.error("Solde insuffisant pour ce retrait");
     }
     if (!phone) {
@@ -175,7 +170,7 @@ const Wallet = () => {
     try {
       await api.post("/transactions/withdraw", {
         userId,
-        amount: Number(amount),
+        amount: drawAmount,
         recipientPhone: phone,
       });
       toast.dismiss(loadingToast);
@@ -192,7 +187,7 @@ const Wallet = () => {
   const handleSell = async (transactionId) => {
     if (!window.confirm("Revendre cet actif ?")) return;
     try {
-      await api.post("/api/transactions/sell", { transactionId, userId });
+      await api.post("/transactions/sell", { transactionId, userId });
       toast.success("Vente réussie !");
       loadWalletData();
     } catch (err) {
@@ -232,7 +227,7 @@ const Wallet = () => {
                 Valeur Totale
               </p>
               <p className="text-2xl font-black">
-                {(balance + portfolioValue).toLocaleString()} F
+                {(Number(balance) + Number(portfolioValue)).toLocaleString()} F
               </p>
             </div>
           </div>
@@ -288,7 +283,7 @@ const Wallet = () => {
               Cash
             </p>
             <h2 className="text-4xl font-black">
-              {balance.toLocaleString()} F
+              {Number(balance).toLocaleString()} F
             </h2>
           </div>
           <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem]">
@@ -296,7 +291,7 @@ const Wallet = () => {
               Actifs
             </p>
             <h2 className="text-4xl font-black text-blue-500">
-              {portfolioValue.toLocaleString()} F
+              {Number(portfolioValue).toLocaleString()} F
             </h2>
           </div>
           <div
@@ -315,7 +310,7 @@ const Wallet = () => {
               }`}
             >
               {totalProfit >= 0 ? "+" : ""}
-              {totalProfit.toLocaleString()} F
+              {Number(totalProfit).toLocaleString()} F
             </h2>
           </div>
         </div>
@@ -362,10 +357,27 @@ const Wallet = () => {
                     </p>
                   </div>
 
-                  {/* ESPACE QR CODE UNIQUEMENT */}
+                  {/* QR CODE */}
                   <div className="p-4 bg-white shadow-2xl rounded-3xl">
                     <DepositQR userId={userId} gateway="paymooney" />
                   </div>
+
+                  {/* FORMULAIRE DE DÉPÔT MANUEL (CONSERVÉ) */}
+                  <form onSubmit={handleDeposit} className="w-full space-y-4">
+                    <input
+                      type="number"
+                      placeholder="Montant (Min 100 F)"
+                      className="w-full p-4 font-bold bg-black border border-slate-800 rounded-2xl focus:border-blue-500 outline-none"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                    />
+                    <button
+                      type="submit"
+                      className="w-full py-4 bg-blue-600 rounded-2xl font-black uppercase text-[10px] tracking-widest"
+                    >
+                      Payer avec PayMooney
+                    </button>
+                  </form>
 
                   <div className="w-full p-4 border border-slate-800 bg-black/40 rounded-2xl">
                     <p className="text-[9px] text-slate-500 font-bold uppercase leading-relaxed text-center italic">
@@ -461,8 +473,8 @@ const Wallet = () => {
                                 isEntree ? "text-emerald-500" : "text-white"
                               }`}
                             >
-                              {isEntree ? "+" : "-"} {t.amount.toLocaleString()}{" "}
-                              F
+                              {isEntree ? "+" : "-"}{" "}
+                              {Number(t.amount).toLocaleString()} F
                             </p>
                             <span
                               className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase ${
@@ -486,7 +498,6 @@ const Wallet = () => {
                             </p>
                           </div>
                         )}
-                        {/* Optionnel : Bouton vendre si achat validé */}
                         {t.type === "achat" && t.status === "valide" && (
                           <button
                             onClick={() => handleSell(t._id)}
