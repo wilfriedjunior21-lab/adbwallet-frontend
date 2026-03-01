@@ -17,15 +17,24 @@ const NavbarActionnaire = () => {
   // État pour stocker les infos du profil (notamment la photo)
   const [userProfile, setUserProfile] = useState(null);
 
-  // Récupération du profil au chargement
+  // RÉCUPÉRATION DU PROFIL (CORRIGÉE POUR ÉVITER LA 404)
   useEffect(() => {
-    if (userId) {
-      api
-        .get(`/api/user/profile/${userId}`)
-        .then((res) => setUserProfile(res.data))
-        .catch((err) => console.error("Erreur chargement profil navbar", err));
-    }
-  }, [userId, location.pathname]); // Se rafraîchit si on change de page
+    const fetchProfile = async () => {
+      // Sécurité : on ne lance l'appel que si l'ID est valide
+      if (!userId || userId === "undefined" || userId === "null") return;
+
+      try {
+        // Utilisation de la route standard définie dans ton server.js
+        const res = await api.get(`/user/${userId}`);
+        setUserProfile(res.data);
+      } catch (err) {
+        // Log discret en cas d'erreur
+        console.error("Profil Navbar : Utilisateur non trouvé ou ID invalide");
+      }
+    };
+
+    fetchProfile();
+  }, [userId, location.pathname]); // Se rafraîchit si on change de page ou d'utilisateur
 
   const handleLogout = () => {
     localStorage.clear();
@@ -43,14 +52,16 @@ const NavbarActionnaire = () => {
             className="flex items-center gap-3 group"
           >
             {/* On utilise ici le logo de l'utilisateur s'il existe, sinon le logo par défaut */}
-            <img
-              src={userProfile?.profilePic || "/logo.png"}
-              alt="Logo"
-              className="w-10 h-10 rounded-full border border-blue-500/30 group-hover:border-blue-500 transition-all object-cover bg-slate-100"
-              onError={(e) => {
-                e.target.src = "/logo.png";
-              }}
-            />
+            <div className="w-10 h-10 rounded-full border border-blue-500/30 group-hover:border-blue-500 transition-all overflow-hidden bg-slate-100 dark:bg-slate-800">
+              <img
+                src={userProfile?.profilePic || "/logo.png"}
+                alt="Logo"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = "https://ui-avatars.com/api/?name=" + userName;
+                }}
+              />
+            </div>
             <span className="text-xl font-black italic uppercase tracking-tighter text-slate-900 dark:text-white">
               ADB<span className="text-blue-500">Business</span>
             </span>
