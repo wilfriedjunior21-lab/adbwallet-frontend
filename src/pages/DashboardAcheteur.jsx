@@ -166,25 +166,43 @@ const DashboardAcheteur = () => {
 
   const handleDepositSubmit = async () => {
     const amount = parseFloat(depositAmount);
+
+    // 1. Récupération sécurisée des infos
+    const storageEmail = localStorage.getItem("email");
+    const storageName = localStorage.getItem("name");
+
+    // 2. Vérification stricte avant l'envoi
     if (!amount || amount < 100) return toast.error("Minimum 100 FCFA");
+    if (!userId)
+      return toast.error(
+        "Erreur : ID utilisateur introuvable. Reconnectez-vous."
+      );
+    if (!storageEmail)
+      return toast.error(
+        "Erreur : Email manquant. Veuillez compléter votre profil."
+      );
 
     setIsRedirecting(true);
     try {
       const res = await api.post("/payments/paymooney/init", {
-        userId,
-        amount,
-        email: localStorage.getItem("email"),
-        name: localStorage.getItem("name"),
+        userId: userId, // On s'assure que c'est bien l'ID
+        amount: amount,
+        email: storageEmail, // On envoie la variable récupérée
+        name: storageName || "Utilisateur",
       });
+
       if (res.data.payment_url) {
         window.location.href = res.data.payment_url;
       }
     } catch (err) {
-      toast.error("Erreur dépôt");
+      // Affiche l'erreur précise renvoyée par le serveur
+      const errorMsg =
+        err.response?.data?.error ||
+        "Erreur de connexion au service de paiement";
+      toast.error(errorMsg);
       setIsRedirecting(false);
     }
   };
-
   const handleSendMessage = async (actionId, receiverId) => {
     if (!newMessage.trim()) return;
     try {
