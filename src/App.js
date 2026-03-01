@@ -20,6 +20,9 @@ import ProposerActif from "./pages/ProposerActif";
 // IMPORT CORRIGÉ : On importe ProposeBond (et non ProposerActif une deuxième fois)
 import ProposeBond from "./pages/ProposeBond";
 
+// --- NOUVEL IMPORT PROFIL ---
+import Profile from "./pages/Profile";
+
 // AUTRES IMPORTS
 import MobileDeposit from "./pages/MobileDeposit";
 import Success from "./pages/Success";
@@ -62,6 +65,12 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/mobile-deposit" element={<MobileDeposit />} />
           <Route path="/success" element={<Success />} />
+
+          {/* --- ROUTE PROFIL (ACCESSIBLE À TOUT UTILISATEUR CONNECTÉ) --- */}
+          <Route
+            path="/profile"
+            element={isAuthenticated ? <Profile /> : <Navigate to="/" />}
+          />
 
           {/* --- ROUTES ACHETEUR --- */}
           <Route
