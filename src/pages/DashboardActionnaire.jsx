@@ -53,7 +53,7 @@ const DashboardActionnaire = () => {
 
   const userId = localStorage.getItem("userId");
 
-  // --- CHARGEMENT DES DONNÉES ---
+  // --- CHARGEMENT DES DONNÉES (CORRIGÉ) ---
   const fetchData = useCallback(async () => {
     if (!userId) return;
     try {
@@ -63,26 +63,38 @@ const DashboardActionnaire = () => {
           api.get(`/transactions/user/${userId}`),
           api.get(`/actions`),
           api.get(`/messages/owner/${userId}`),
-          api.get(`/obligations/owner/${userId}`),
+          api.get(`/obligations/owner/${userId}`).catch(() => ({ data: [] })),
         ]);
 
       setBalance(userRes.data.balance || 0);
       setTransactions(transRes.data || []);
       setMessages(messagesRes.data || []);
 
-      const mesOblis = obligationsRes.data || [];
-      setMesObligations(mesOblis);
+      // 1. Correction du filtrage des ACTIONS
+      const toutesLesActions = actionsRes.data || [];
+      const mesActionsFiltrees = toutesLesActions.filter(
+        (a) => String(a.creatorId?._id || a.creatorId) === String(userId)
+      );
+      setMesActions(mesActionsFiltrees);
+
+      // 2. Correction et Mapping des OBLIGATIONS (Backend -> Frontend names)
+      const mesOblisBrutes = obligationsRes.data || [];
+      const mesOblisMappees = mesOblisBrutes.map((obli) => ({
+        ...obli,
+        // Traduction des champs backend vers les noms utilisés dans ton JSX
+        name: obli.titre || "Obligation",
+        interestRate: obli.tauxInteret || 0,
+        principalAmount: obli.montantCible || 0,
+        dateEcheance: obli.createdAt, // Utilisation de createdAt si dateEcheance est nulle
+      }));
+      setMesObligations(mesOblisMappees);
 
       const ventes = (transRes.data || []).filter((t) => t.type === "vente");
-      const filteredActions = (actionsRes.data || []).filter(
-        (a) => a.creatorId === userId
-      );
 
-      setMesActions(filteredActions);
       setStats({
         nombreVentes: ventes.length,
-        actionsCount: filteredActions.length,
-        obligationsCount: mesOblis.length,
+        actionsCount: mesActionsFiltrees.length,
+        obligationsCount: mesOblisMappees.length,
       });
     } catch (err) {
       console.error("Erreur Dashboard:", err);
@@ -114,7 +126,7 @@ const DashboardActionnaire = () => {
     }
   };
 
-  // --- GESTION DES OBLIGATIONS (NOUVEAU) ---
+  // --- GESTION DES OBLIGATIONS ---
   const startEditObli = (obli) => {
     setEditingObliId(obli._id);
     setEditObliForm({
@@ -125,7 +137,11 @@ const DashboardActionnaire = () => {
 
   const handleUpdateObli = async (id) => {
     try {
-      await api.patch(`/obligations/${id}`, editObliForm);
+      // On renvoie les noms attendus par le backend (tauxInteret)
+      await api.patch(`/obligations/${id}`, {
+        tauxInteret: editObliForm.interestRate,
+        description: editObliForm.description,
+      });
       toast.success("Obligation mise à jour !");
       setEditingObliId(null);
       fetchData();
@@ -223,7 +239,7 @@ const DashboardActionnaire = () => {
           </p>
         </header>
 
-        {/* --- SECTION PERFORMANCE --- */}
+        {/* --- PERFORMANCE --- */}
         <div className="mb-10 bg-slate-900/40 border border-slate-800 p-8 rounded-[2.5rem] shadow-2xl">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-lg italic font-black uppercase tracking-tighter">
@@ -276,7 +292,7 @@ const DashboardActionnaire = () => {
           </div>
         </div>
 
-        {/* --- GRID ACTIONS --- */}
+        {/* --- ACTIONS --- */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-8">
             <FiPackage className="text-blue-500" size={24} />
@@ -368,7 +384,7 @@ const DashboardActionnaire = () => {
           </div>
         </div>
 
-        {/* --- SECTION OBLIGATIONS --- */}
+        {/* --- OBLIGATIONS (AFFICHAGE CORRIGÉ) --- */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-8">
             <FiFileText className="text-emerald-500" size={24} />
@@ -428,6 +444,10 @@ const DashboardActionnaire = () => {
                           <span className="inline-block mt-1 text-[8px] bg-emerald-500/10 text-emerald-500 px-2 py-1 rounded-full font-black uppercase">
                             Taux: {obli.interestRate}%
                           </span>
+                          <p className="text-[9px] text-slate-600 mt-2 italic">
+                            Échéance:{" "}
+                            {new Date(obli.dateEcheance).toLocaleDateString()}
+                          </p>
                         </div>
                         <button
                           onClick={() => startEditObli(obli)}
@@ -466,7 +486,7 @@ const DashboardActionnaire = () => {
           </div>
         </div>
 
-        {/* --- STATS & SUPPORT --- */}
+        {/* --- SUPPORT & SIDEBAR --- */}
         <div className="grid grid-cols-1 gap-8 mb-12 lg:grid-cols-3">
           <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-[2.5rem] p-8">
             <div className="flex items-center gap-3 mb-6">
@@ -524,7 +544,6 @@ const DashboardActionnaire = () => {
             </div>
           </div>
 
-          {/* SIDEBAR STATS */}
           <div className="space-y-6">
             <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] text-center">
               <p className="text-[10px] font-black uppercase text-slate-500 mb-2">
@@ -596,7 +615,6 @@ const DashboardActionnaire = () => {
             </form>
           </div>
 
-          {/* HISTORIQUE */}
           <div className="bg-slate-900 border border-slate-800 rounded-[3rem] overflow-hidden flex flex-col">
             <div className="p-6 bg-slate-800/20 uppercase text-[10px] font-black text-slate-400">
               Flux financiers
