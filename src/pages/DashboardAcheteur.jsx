@@ -12,6 +12,8 @@ import {
   FiCalendar,
   FiLayers,
   FiUser,
+  FiInfo,
+  FiExternalLink,
 } from "react-icons/fi";
 /* Ajout de AreaChart et Area pour le graphique de fond */
 import {
@@ -46,6 +48,9 @@ const DashboardAcheteur = () => {
   const [depositAmount, setDepositAmount] = useState("");
   const [isRedirecting, setIsRedirecting] = useState(false);
 
+  // --- ÉTAT POUR LA DESCRIPTION (MODALE) ---
+  const [selectedAsset, setSelectedAsset] = useState(null);
+
   const userId = localStorage.getItem("userId");
 
   // --- LOGIQUE DE CALCUL DES STATS (BASÉES SUR LA DATABASE) ---
@@ -74,7 +79,6 @@ const DashboardAcheteur = () => {
   const stats = calculatePortfolioStats();
 
   // --- PRÉPARATION DES DONNÉES DU GRAPHIQUE (DATABASE) ---
-  // On crée une courbe qui part de (Total - Profit) pour arriver au Total Actuel
   const performanceData = [
     { name: "Début", val: stats.totalGlobal - stats.totalProfit },
     { name: "Progression", val: stats.totalGlobal - stats.totalProfit / 2 },
@@ -127,7 +131,6 @@ const DashboardAcheteur = () => {
     }
   }, [activeChat, userId]);
 
-  // --- TOUTES LES ACTIONS UTILISATEUR (CONSERVÉES À 100%) ---
   const handleKycSubmit = async () => {
     if (!kycDoc) return toast.error("Veuillez entrer l'URL du document");
     try {
@@ -276,6 +279,73 @@ const DashboardAcheteur = () => {
         </div>
       )}
 
+      {/* --- MODALE DE DESCRIPTION (DÉTAILS ACTIF) --- */}
+      {selectedAsset && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[3rem] max-w-2xl w-full shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
+            <button
+              onClick={() => setSelectedAsset(null)}
+              className="absolute top-6 right-6 text-slate-500 hover:text-white transition-colors"
+            >
+              <FiX size={28} />
+            </button>
+
+            <div className="flex items-center gap-4 mb-8">
+              <div className="w-16 h-16 rounded-3xl bg-blue-500/10 flex items-center justify-center text-blue-500 border border-blue-500/20">
+                <FiInfo size={32} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500 mb-1">
+                  Détails de l'actif
+                </p>
+                <h2 className="text-3xl font-black uppercase italic tracking-tighter">
+                  {selectedAsset.name || selectedAsset.titre}
+                </h2>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-black/40 p-6 rounded-[2rem] border border-white/5">
+                <h4 className="text-[10px] font-black uppercase text-slate-500 mb-4 flex items-center gap-2">
+                  <FiExternalLink size={12} /> À propos de cette opportunité
+                </h4>
+                <p className="text-sm text-slate-300 leading-relaxed font-medium">
+                  {selectedAsset.description ||
+                    "Aucune description détaillée n'a été fournie pour cet actif."}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+                  <p className="text-[9px] font-black text-slate-500 uppercase">
+                    Émetteur
+                  </p>
+                  <p className="font-bold text-white">
+                    {selectedAsset.creatorId?.name || "Institution vérifiée"}
+                  </p>
+                </div>
+                <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700">
+                  <p className="text-[9px] font-black text-slate-500 uppercase">
+                    Type
+                  </p>
+                  <p className="font-bold text-blue-400 uppercase">
+                    {activeTab}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSelectedAsset(null)}
+              className="w-full mt-8 py-4 bg-slate-800 hover:bg-white hover:text-black rounded-2xl font-black uppercase text-xs transition-all"
+            >
+              Fermer l'aperçu
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* --- HEADER --- */}
       <header className="flex flex-col gap-8 mb-10">
         <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
@@ -310,7 +380,7 @@ const DashboardAcheteur = () => {
           </button>
         </div>
 
-        {/* --- NOUVEAU : GRAPHIQUE DE PERFORMANCE GLOBALE (DONNÉES DB) --- */}
+        {/* --- GRAPHIQUE DE PERFORMANCE GLOBALE --- */}
         <div className="w-full bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-500">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <div>
@@ -373,7 +443,7 @@ const DashboardAcheteur = () => {
         </div>
       </header>
 
-      {/* --- NAVIGATION (CONSERVÉE) --- */}
+      {/* --- NAVIGATION --- */}
       <div className="flex gap-4 mb-8">
         <button
           onClick={() => setActiveTab("actions")}
@@ -397,7 +467,7 @@ const DashboardAcheteur = () => {
         </button>
       </div>
 
-      {/* --- KYC WARNING (CONSERVÉ) --- */}
+      {/* --- KYC WARNING --- */}
       {user?.kycStatus === "non_verifie" && (
         <div className="bg-orange-600/10 border border-orange-600/20 p-8 rounded-[2rem] mb-10">
           <div className="flex items-center gap-3 mb-4 text-orange-500">
@@ -423,14 +493,22 @@ const DashboardAcheteur = () => {
         </div>
       )}
 
-      {/* --- GRID D'ACTIFS (CONSERVÉ) --- */}
+      {/* --- GRID D'ACTIFS --- */}
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
         {activeTab === "actions"
           ? actions.map((action) => (
               <div
                 key={action._id}
-                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-blue-500/50 transition-all shadow-xl flex flex-col"
+                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-blue-500/50 transition-all shadow-xl flex flex-col relative group"
               >
+                {/* BOUTON INFO AJOUTÉ */}
+                <button
+                  onClick={() => setSelectedAsset(action)}
+                  className="absolute top-4 right-4 p-2 bg-slate-800 rounded-xl opacity-0 group-hover:opacity-100 transition-all text-blue-400 hover:bg-blue-600 hover:text-white"
+                >
+                  <FiInfo size={16} />
+                </button>
+
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-full border border-blue-500/20 overflow-hidden bg-black flex items-center justify-center">
                     {action.creatorId?.profilePic ? (
@@ -575,8 +653,16 @@ const DashboardAcheteur = () => {
           : bonds.map((bond) => (
               <div
                 key={bond._id}
-                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-amber-500/50 shadow-xl flex flex-col"
+                className="bg-slate-900 border border-slate-800 p-6 rounded-[2.5rem] hover:border-amber-500/50 shadow-xl flex flex-col relative group"
               >
+                {/* BOUTON INFO AJOUTÉ */}
+                <button
+                  onClick={() => setSelectedAsset(bond)}
+                  className="absolute top-4 right-4 p-2 bg-slate-800 rounded-xl opacity-0 group-hover:opacity-100 transition-all text-amber-500 hover:bg-amber-600 hover:text-white"
+                >
+                  <FiInfo size={16} />
+                </button>
+
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-xl font-black italic uppercase text-amber-500 leading-tight">
