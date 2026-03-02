@@ -9,6 +9,7 @@
     "@paypal/react-paypal-js": "^8.9.2",
     "@tailwindcss/postcss": "^4.1.18",
     "axios": "^1.6.0",
+    "framer-motion": "^12.34.3",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.564.0",

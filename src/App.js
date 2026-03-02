@@ -4,7 +4,9 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation, // Ajouté pour détecter le changement de page
 } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion"; // Ajouté pour les animations
 
 // --- IMPORTS DES COMPOSANTS ---
 import Navbar from "./pages/Navbar";
@@ -16,19 +18,173 @@ import DashboardActionnaire from "./pages/DashboardActionnaire";
 import AdminPanel from "./pages/AdminPanel";
 import Wallet from "./pages/Wallet";
 import ProposerActif from "./pages/ProposerActif";
-
-// IMPORT CORRIGÉ : On importe ProposeBond (et non ProposerActif une deuxième fois)
 import ProposeBond from "./pages/ProposeBond";
-
-// --- NOUVEL IMPORT PROFIL ---
 import Profile from "./pages/Profile";
-
-// AUTRES IMPORTS
 import MobileDeposit from "./pages/MobileDeposit";
 import Success from "./pages/Success";
 
+// --- PETIT COMPOSANT D'ANIMATION (Interne pour ne rien supprimer) ---
+const PageWrapper = ({ children }) => (
+  <motion.div
+    initial={{ opacity: 0, x: 20 }}
+    animate={{ opacity: 1, x: 0 }}
+    exit={{ opacity: 0, x: -20 }}
+    transition={{ duration: 0.3 }}
+  >
+    {children}
+  </motion.div>
+);
+
+// On crée un composant intermédiaire pour utiliser useLocation()
+function AnimatedRoutes({ isAuthenticated, role }) {
+  const location = useLocation();
+
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        {/* --- ACCUEIL / AUTH --- */}
+        <Route
+          path="/"
+          element={
+            <PageWrapper>
+              {!isAuthenticated ? (
+                <Login />
+              ) : (
+                <Navigate
+                  to={
+                    role === "admin"
+                      ? "/admin"
+                      : role === "actionnaire"
+                      ? "/dashboard-actionnaire"
+                      : "/dashboard-acheteur"
+                  }
+                />
+              )}
+            </PageWrapper>
+          }
+        />
+
+        <Route
+          path="/register"
+          element={
+            <PageWrapper>
+              <Register />
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/mobile-deposit"
+          element={
+            <PageWrapper>
+              <MobileDeposit />
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/success"
+          element={
+            <PageWrapper>
+              <Success />
+            </PageWrapper>
+          }
+        />
+
+        {/* --- ROUTE PROFIL --- */}
+        <Route
+          path="/profile"
+          element={
+            <PageWrapper>
+              {isAuthenticated ? <Profile /> : <Navigate to="/" />}
+            </PageWrapper>
+          }
+        />
+
+        {/* --- ROUTES ACHETEUR --- */}
+        <Route
+          path="/dashboard-acheteur"
+          element={
+            <PageWrapper>
+              {isAuthenticated && role === "acheteur" ? (
+                <DashboardAcheteur />
+              ) : (
+                <Navigate to="/" />
+              )}
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/wallet"
+          element={
+            <PageWrapper>
+              {isAuthenticated && role === "acheteur" ? (
+                <Wallet />
+              ) : (
+                <Navigate to="/" />
+              )}
+            </PageWrapper>
+          }
+        />
+
+        {/* --- ROUTES ACTIONNAIRE --- */}
+        <Route
+          path="/dashboard-actionnaire"
+          element={
+            <PageWrapper>
+              {isAuthenticated && role === "actionnaire" ? (
+                <DashboardActionnaire />
+              ) : (
+                <Navigate to="/" />
+              )}
+            </PageWrapper>
+          }
+        />
+        <Route
+          path="/proposer-actif"
+          element={
+            <PageWrapper>
+              {isAuthenticated && role === "actionnaire" ? (
+                <ProposerActif />
+              ) : (
+                <Navigate to="/" />
+              )}
+            </PageWrapper>
+          }
+        />
+
+        <Route
+          path="/propose-bond"
+          element={
+            <PageWrapper>
+              {isAuthenticated && role === "actionnaire" ? (
+                <ProposeBond />
+              ) : (
+                <Navigate to="/" />
+              )}
+            </PageWrapper>
+          }
+        />
+
+        {/* --- ROUTE ADMIN --- */}
+        <Route
+          path="/admin"
+          element={
+            <PageWrapper>
+              {isAuthenticated && role === "admin" ? (
+                <AdminPanel />
+              ) : (
+                <Navigate to="/" />
+              )}
+            </PageWrapper>
+          }
+        />
+
+        <Route path="*" element={<Navigate to="/" />} />
+      </Routes>
+    </AnimatePresence>
+  );
+}
+
 function App() {
-  // Récupération des informations de session
   const role = localStorage.getItem("role");
   const token = localStorage.getItem("token");
   const isAuthenticated = token && token !== "undefined";
@@ -41,107 +197,7 @@ function App() {
           <>{role === "actionnaire" ? <NavbarActionnaire /> : <Navbar />}</>
         )}
 
-        <Routes>
-          {/* --- ACCUEIL / AUTH --- */}
-          <Route
-            path="/"
-            element={
-              !isAuthenticated ? (
-                <Login />
-              ) : (
-                <Navigate
-                  to={
-                    role === "admin"
-                      ? "/admin"
-                      : role === "actionnaire"
-                      ? "/dashboard-actionnaire"
-                      : "/dashboard-acheteur"
-                  }
-                />
-              )
-            }
-          />
-
-          <Route path="/register" element={<Register />} />
-          <Route path="/mobile-deposit" element={<MobileDeposit />} />
-          <Route path="/success" element={<Success />} />
-
-          {/* --- ROUTE PROFIL (ACCESSIBLE À TOUT UTILISATEUR CONNECTÉ) --- */}
-          <Route
-            path="/profile"
-            element={isAuthenticated ? <Profile /> : <Navigate to="/" />}
-          />
-
-          {/* --- ROUTES ACHETEUR --- */}
-          <Route
-            path="/dashboard-acheteur"
-            element={
-              isAuthenticated && role === "acheteur" ? (
-                <DashboardAcheteur />
-              ) : (
-                <Navigate to="/" />
-              )
-            }
-          />
-          <Route
-            path="/wallet"
-            element={
-              isAuthenticated && role === "acheteur" ? (
-                <Wallet />
-              ) : (
-                <Navigate to="/" />
-              )
-            }
-          />
-
-          {/* --- ROUTES ACTIONNAIRE --- */}
-          <Route
-            path="/dashboard-actionnaire"
-            element={
-              isAuthenticated && role === "actionnaire" ? (
-                <DashboardActionnaire />
-              ) : (
-                <Navigate to="/" />
-              )
-            }
-          />
-          <Route
-            path="/proposer-actif"
-            element={
-              isAuthenticated && role === "actionnaire" ? (
-                <ProposerActif />
-              ) : (
-                <Navigate to="/" />
-              )
-            }
-          />
-
-          {/* NOUVELLE ROUTE OBLIGATIONS */}
-          <Route
-            path="/propose-bond"
-            element={
-              isAuthenticated && role === "actionnaire" ? (
-                <ProposeBond />
-              ) : (
-                <Navigate to="/" />
-              )
-            }
-          />
-
-          {/* --- ROUTE ADMIN --- */}
-          <Route
-            path="/admin"
-            element={
-              isAuthenticated && role === "admin" ? (
-                <AdminPanel />
-              ) : (
-                <Navigate to="/" />
-              )
-            }
-          />
-
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+        <AnimatedRoutes isAuthenticated={isAuthenticated} role={role} />
       </div>
     </Router>
   );
