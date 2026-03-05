@@ -22,6 +22,7 @@ import ProposeBond from "./pages/ProposeBond";
 import Profile from "./pages/Profile";
 import MobileDeposit from "./pages/MobileDeposit";
 import Success from "./pages/Success";
+import ProfilActionnaire from "./pages/ProfilActionnaire"; // AJOUTÉ : Import du nouveau composant
 
 // --- PETIT COMPOSANT D'ANIMATION (Interne pour ne rien supprimer) ---
 const PageWrapper = ({ children }) => (
@@ -157,6 +158,20 @@ function AnimatedRoutes({ isAuthenticated, role }) {
             <PageWrapper>
               {isAuthenticated && role === "actionnaire" ? (
                 <ProposeBond />
+              ) : (
+                <Navigate to="/" />
+              )}
+            </PageWrapper>
+          }
+        />
+
+        {/* --- NOUVELLE ROUTE : PROFIL ACTIONNAIRE (NIU/CNI) --- */}
+        <Route
+          path="/profil-actionnaire"
+          element={
+            <PageWrapper>
+              {isAuthenticated && role === "actionnaire" ? (
+                <ProfilActionnaire />
               ) : (
                 <Navigate to="/" />
               )}
