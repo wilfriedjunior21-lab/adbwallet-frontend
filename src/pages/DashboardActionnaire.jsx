@@ -13,6 +13,7 @@ import {
   FiPhone,
   FiFileText,
   FiX,
+  FiShield, // Importé pour le badge de confiance
 } from "react-icons/fi";
 import {
   AreaChart,
@@ -27,6 +28,7 @@ import { toast, Toaster } from "react-hot-toast";
 
 const DashboardActionnaire = () => {
   const [balance, setBalance] = useState(0);
+  const [user, setUser] = useState(null); // Ajouté pour le statut KYC
   const [stats, setStats] = useState({
     nombreVentes: 0,
     actionsCount: 0,
@@ -53,7 +55,33 @@ const DashboardActionnaire = () => {
 
   const userId = localStorage.getItem("userId");
 
-  // --- CHARGEMENT DES DONNÉES (CORRIGÉ) ---
+  // --- LOGIQUE DES NOTIFICATIONS RÉELLES ---
+  const notifications = useMemo(() => {
+    const notes = [];
+    // Notifications pour les Actions
+    mesActions.forEach((action) => {
+      if (action.status === "valide") {
+        notes.push({
+          id: `act-${action._id}`,
+          text: `Votre projet d'actif '${action.name}' a été validé !`,
+          type: "success",
+        });
+      }
+    });
+    // Notifications pour les Obligations
+    mesObligations.forEach((obli) => {
+      if (obli.status === "valide") {
+        notes.push({
+          id: `bond-${obli._id}`,
+          text: `L'obligation '${obli.name}' est maintenant en ligne.`,
+          type: "info",
+        });
+      }
+    });
+    return notes;
+  }, [mesActions, mesObligations]);
+
+  // --- CHARGEMENT DES DONNÉES ---
   const fetchData = useCallback(async () => {
     if (!userId) return;
     try {
@@ -66,26 +94,24 @@ const DashboardActionnaire = () => {
           api.get(`/obligations/owner/${userId}`).catch(() => ({ data: [] })),
         ]);
 
+      setUser(userRes.data); // Stockage des infos user pour le KYC
       setBalance(userRes.data.balance || 0);
       setTransactions(transRes.data || []);
       setMessages(messagesRes.data || []);
 
-      // 1. Correction du filtrage des ACTIONS
       const toutesLesActions = actionsRes.data || [];
       const mesActionsFiltrees = toutesLesActions.filter(
         (a) => String(a.creatorId?._id || a.creatorId) === String(userId)
       );
       setMesActions(mesActionsFiltrees);
 
-      // 2. Correction et Mapping des OBLIGATIONS (Backend -> Frontend names)
       const mesOblisBrutes = obligationsRes.data || [];
       const mesOblisMappees = mesOblisBrutes.map((obli) => ({
         ...obli,
-        // Traduction des champs backend vers les noms utilisés dans ton JSX
         name: obli.titre || "Obligation",
         interestRate: obli.tauxInteret || 0,
         principalAmount: obli.montantCible || 0,
-        dateEcheance: obli.createdAt, // Utilisation de createdAt si dateEcheance est nulle
+        dateEcheance: obli.createdAt,
       }));
       setMesObligations(mesOblisMappees);
 
@@ -137,7 +163,6 @@ const DashboardActionnaire = () => {
 
   const handleUpdateObli = async (id) => {
     try {
-      // On renvoie les noms attendus par le backend (tauxInteret)
       await api.patch(`/obligations/${id}`, {
         tauxInteret: editObliForm.interestRate,
         description: editObliForm.description,
@@ -179,7 +204,6 @@ const DashboardActionnaire = () => {
   const handleWithdraw = async (e) => {
     e.preventDefault();
     const amount = Number(withdrawAmount);
-
     if (amount <= 0) return toast.error("Montant invalide");
     if (amount > balance) return toast.error("Solde insuffisant");
     if (withdrawPhone.length < 8)
@@ -230,14 +254,50 @@ const DashboardActionnaire = () => {
       <div className="max-w-6xl p-6 mx-auto">
         <Toaster position="top-right" />
 
-        <header className="mt-8 mb-10">
-          <h1 className="text-4xl italic font-black uppercase">
-            Espace <span className="text-blue-500">Business</span>
-          </h1>
-          <p className="mt-2 text-[10px] font-black tracking-widest uppercase text-slate-500">
-            Flux financier en temps réel | ID: {userId?.substring(0, 8)}...
-          </p>
+        <header className="mt-8 mb-6 flex justify-between items-end">
+          <div>
+            <h1 className="text-4xl italic font-black uppercase flex items-center gap-3">
+              Espace <span className="text-blue-500">Business</span>
+              {/* BADGE KYC RÉEL */}
+              {user?.kycStatus === "valide" && (
+                <div className="flex items-center gap-1 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
+                  <FiShield className="text-amber-500" size={12} />
+                  <span className="text-[8px] text-amber-500 font-black uppercase tracking-tighter">
+                    Certifié
+                  </span>
+                </div>
+              )}
+            </h1>
+            <p className="mt-2 text-[10px] font-black tracking-widest uppercase text-slate-500">
+              Flux financier en temps réel | ID: {userId?.substring(0, 8)}...
+            </p>
+          </div>
         </header>
+
+        {/* --- ZONE DE NOTIFICATIONS DYNAMIQUES --- */}
+        {notifications.length > 0 && (
+          <div className="space-y-3 mb-10">
+            {notifications.slice(0, 3).map((n) => (
+              <div
+                key={n.id}
+                className={`p-4 rounded-2xl border flex items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500 ${
+                  n.type === "success"
+                    ? "bg-emerald-500/10 border-emerald-500/20"
+                    : "bg-blue-500/10 border-blue-500/20"
+                }`}
+              >
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    n.type === "success" ? "bg-emerald-500" : "bg-blue-500"
+                  } animate-pulse`}
+                />
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-300">
+                  {n.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* --- PERFORMANCE --- */}
         <div className="mb-10 bg-slate-900/40 border border-slate-800 p-8 rounded-[2.5rem] shadow-2xl">
@@ -384,7 +444,7 @@ const DashboardActionnaire = () => {
           </div>
         </div>
 
-        {/* --- OBLIGATIONS (AFFICHAGE CORRIGÉ) --- */}
+        {/* --- OBLIGATIONS --- */}
         <div className="mb-12">
           <div className="flex items-center gap-3 mb-8">
             <FiFileText className="text-emerald-500" size={24} />
