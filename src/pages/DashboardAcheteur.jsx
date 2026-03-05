@@ -14,6 +14,7 @@ import {
   FiUser,
   FiInfo,
   FiExternalLink,
+  FiBell, // Ajouté pour les notifications
 } from "react-icons/fi";
 /* Ajout de AreaChart et Area pour le graphique de fond */
 import {
@@ -37,6 +38,10 @@ const DashboardAcheteur = () => {
   const [buyQty, setBuyQty] = useState({});
   const [bondInvestAmount, setBondInvestAmount] = useState({});
   const [loading, setLoading] = useState(true);
+
+  // --- ÉTATS POUR LES NOTIFICATIONS ---
+  const [notifications, setNotifications] = useState([]);
+  const [showNotifs, setShowNotifs] = useState(false);
 
   // --- ÉTATS POUR LE SUPPORT RÉEL ---
   const [activeChat, setActiveChat] = useState(null);
@@ -89,14 +94,16 @@ const DashboardAcheteur = () => {
   const fetchData = useCallback(async () => {
     if (!userId) return;
     try {
-      const [userRes, actionsRes, bondsRes] = await Promise.all([
+      const [userRes, actionsRes, bondsRes, notifRes] = await Promise.all([
         api.get(`/user/${userId}`),
         api.get("/actions"),
         api.get("/bonds"),
+        api.get(`/notifications/${userId}`), // Fetch notifications
       ]);
       setUser(userRes.data);
       setActions(actionsRes.data);
       setBonds(bondsRes.data || []);
+      setNotifications(notifRes.data || []);
 
       if (userRes.data.email && !localStorage.getItem("email")) {
         localStorage.setItem("email", userRes.data.email);
@@ -224,6 +231,16 @@ const DashboardAcheteur = () => {
       setNewMessage("");
     } catch (err) {
       toast.error("Erreur d'envoi");
+    }
+  };
+
+  const markAsRead = async () => {
+    try {
+      await api.put(`/notifications/read-all/${userId}`);
+      setNotifications([]);
+      setShowNotifs(false);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -369,15 +386,68 @@ const DashboardAcheteur = () => {
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setShowDepositModal(true)}
-            className="p-4 bg-blue-600 shadow-lg rounded-3xl hover:bg-blue-500 group"
-          >
-            <FiPlusCircle
-              size={24}
-              className="group-hover:rotate-90 transition-transform"
-            />
-          </button>
+
+          <div className="flex items-center gap-3">
+            {/* BOUTON NOTIFICATIONS */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifs(!showNotifs)}
+                className="p-4 bg-slate-900 border border-slate-800 rounded-3xl text-slate-400 hover:text-white relative"
+              >
+                <FiBell size={24} />
+                {notifications.length > 0 && (
+                  <span className="absolute top-3 right-3 w-3 h-3 bg-red-500 border-2 border-slate-900 rounded-full"></span>
+                )}
+              </button>
+
+              {showNotifs && (
+                <div className="absolute right-0 mt-4 w-80 bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl z-[100] overflow-hidden animate-in fade-in zoom-in duration-200">
+                  <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest">
+                      Notifications
+                    </h3>
+                    <button
+                      onClick={markAsRead}
+                      className="text-[10px] font-bold text-blue-500 hover:text-white"
+                    >
+                      Tout marquer lu
+                    </button>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <p className="p-6 text-center text-xs text-slate-500 font-bold uppercase">
+                        Aucune notification
+                      </p>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n._id}
+                          className="p-4 border-b border-slate-800/50 hover:bg-white/5 transition-colors"
+                        >
+                          <p className="text-xs font-medium text-slate-200">
+                            {n.message}
+                          </p>
+                          <p className="text-[8px] text-slate-500 mt-2 font-black uppercase">
+                            {new Date(n.createdAt).toLocaleString()}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setShowDepositModal(true)}
+              className="p-4 bg-blue-600 shadow-lg rounded-3xl hover:bg-blue-500 group"
+            >
+              <FiPlusCircle
+                size={24}
+                className="group-hover:rotate-90 transition-transform"
+              />
+            </button>
+          </div>
         </div>
 
         {/* --- GRAPHIQUE DE PERFORMANCE GLOBALE --- */}
