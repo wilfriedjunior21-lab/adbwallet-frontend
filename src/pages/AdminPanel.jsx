@@ -29,11 +29,9 @@ const AdminPanel = () => {
   const [amountPerShare, setAmountPerShare] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Utilisation d'une ref pour suivre les requêtes en cours et éviter les collisions
   const abortControllerRef = useRef(null);
 
   const fetchData = useCallback(async (isAutoRefresh = false) => {
-    // On annule la requête précédente si elle n'est pas finie avant d'en lancer une nouvelle
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -55,9 +53,7 @@ const AdminPanel = () => {
       setTransactions(tRes.data);
       setBonds(bRes.data || []);
     } catch (err) {
-      // Si l'erreur est juste une annulation (isCancel), on ne fait rien
       if (axios.isCancel(err)) return;
-
       console.error("Erreur de rafraîchissement auto:", err);
       if (!isAutoRefresh) {
         toast.error("Erreur de chargement des données");
@@ -76,9 +72,25 @@ const AdminPanel = () => {
     };
   }, [fetchData]);
 
+  // --- LOGIQUE D'ENVOI NOTIFICATION (AJOUTÉE) ---
+  const triggerNotification = async (userId, type, message) => {
+    try {
+      // On suppose que ton API a une route pour envoyer des alertes/emails
+      await api.post("/admin/send-notification", { userId, type, message });
+    } catch (err) {
+      console.warn("La notification n'a pas pu être envoyée, mais la validation est faite.");
+    }
+  };
+
   const handleValidateKYC = async (id, status) => {
     try {
       await api.patch(`/admin/kyc/${id}`, { status });
+      
+      // Déclenchement de l'envoi si validé
+      if (status === "valide") {
+        await triggerNotification(id, "KYC_SUCCESS", "Votre compte a été validé avec succès.");
+      }
+      
       toast.success(`Utilisateur mis à jour : ${status}`);
       fetchData();
     } catch (err) {
@@ -89,6 +101,13 @@ const AdminPanel = () => {
   const handleValidateAction = async (id) => {
     try {
       await api.patch(`/admin/actions/${id}/validate`);
+      
+      // On récupère l'action pour avoir le créateur
+      const action = actions.find(a => a._id === id);
+      if (action) {
+        await triggerNotification(action.creatorId, "ASSET_VALIDATED", `Votre actif ${action.name} est en ligne.`);
+      }
+
       toast.success("Action publiée sur le marché !");
       fetchData();
     } catch (err) {
@@ -99,6 +118,12 @@ const AdminPanel = () => {
   const handleValidateDeposit = async (id) => {
     try {
       await api.patch(`/admin/transactions/${id}/validate`);
+      
+      const trans = transactions.find(t => t._id === id);
+      if (trans) {
+        await triggerNotification(trans.userId?._id, "DEPOSIT_CONFIRMED", `Votre dépôt de ${trans.amount} F a été validé.`);
+      }
+
       toast.success("Dépôt validé et compte crédité !");
       fetchData();
     } catch (err) {
@@ -107,14 +132,15 @@ const AdminPanel = () => {
   };
 
   const handleValidateWithdrawal = async (id) => {
-    if (
-      !window.confirm(
-        "Confirmez-vous avoir envoyé l'argent manuellement au client ?"
-      )
-    )
-      return;
+    if (!window.confirm("Confirmez-vous avoir envoyé l'argent manuellement au client ?")) return;
     try {
       await api.patch(`/admin/transactions/${id}/validate`);
+      
+      const trans = transactions.find(t => t._id === id);
+      if (trans) {
+        await triggerNotification(trans.userId?._id, "WITHDRAW_SUCCESS", `Votre retrait de ${trans.amount} F a été traité.`);
+      }
+
       toast.success("Retrait marqué comme terminé !");
       fetchData();
     } catch (err) {
@@ -123,9 +149,7 @@ const AdminPanel = () => {
   };
 
   const handleRejectWithdrawal = async (id) => {
-    const reason = window.prompt(
-      "Motif du refus (sera visible par le client) :"
-    );
+    const reason = window.prompt("Motif du refus (sera visible par le client) :");
     if (reason === null) return;
     try {
       await api.patch(`/admin/transactions/${id}/reject`, { reason });
@@ -138,8 +162,7 @@ const AdminPanel = () => {
 
   const handleDistributeDividends = async (e) => {
     e.preventDefault();
-    if (!selectedAction || !amountPerShare)
-      return toast.error("Veuillez remplir tous les champs");
+    if (!selectedAction || !amountPerShare) return toast.error("Veuillez remplir tous les champs");
     const confirmDist = window.confirm(`Confirmez-vous la distribution ?`);
     if (!confirmDist) return;
     setIsProcessing(true);
@@ -161,6 +184,12 @@ const AdminPanel = () => {
   const handleValidateBond = async (id) => {
     try {
       await api.patch(`/admin/bonds/${id}/validate`);
+      
+      const bond = bonds.find(b => b._id === id);
+      if (bond) {
+        await triggerNotification(bond.actionnaireId?._id, "BOND_VALIDATED", `Votre obligation ${bond.titre} est maintenant active.`);
+      }
+
       toast.success("Obligation approuvée et mise en ligne !");
       fetchData();
     } catch (err) {
@@ -169,8 +198,7 @@ const AdminPanel = () => {
   };
 
   const handleRejectBond = async (id) => {
-    if (!window.confirm("Voulez-vous vraiment rejeter cette obligation ?"))
-      return;
+    if (!window.confirm("Voulez-vous vraiment rejeter cette obligation ?")) return;
     try {
       await api.delete(`/admin/bonds/${id}`);
       toast.success("Obligation rejetée");
@@ -258,8 +286,7 @@ const AdminPanel = () => {
               : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
-          <FiUsers /> KYC (
-          {users.filter((u) => u.kycStatus === "en_attente").length})
+          <FiUsers /> KYC ({users.filter((u) => u.kycStatus === "en_attente").length})
         </button>
 
         <button
@@ -270,8 +297,7 @@ const AdminPanel = () => {
               : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
-          <FiPackage /> Actifs (
-          {actions.filter((a) => a.status === "en_attente").length})
+          <FiPackage /> Actifs ({actions.filter((a) => a.status === "en_attente").length})
         </button>
 
         <button
@@ -282,8 +308,7 @@ const AdminPanel = () => {
               : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
-          <FiBriefcase /> Obligations (
-          {bonds.filter((b) => b.status === "en_attente").length})
+          <FiBriefcase /> Obligations ({bonds.filter((b) => b.status === "en_attente").length})
         </button>
 
         <button
@@ -294,13 +319,7 @@ const AdminPanel = () => {
               : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
-          <FiDollarSign /> Dépôts (
-          {
-            transactions.filter(
-              (t) => t.type === "depot" && t.status === "en_attente"
-            ).length
-          }
-          )
+          <FiDollarSign /> Dépôts ({transactions.filter((t) => t.type === "depot" && t.status === "en_attente").length})
         </button>
 
         <button
@@ -311,13 +330,7 @@ const AdminPanel = () => {
               : "bg-slate-900 border border-slate-800 text-slate-500"
           }`}
         >
-          <FiArrowUpRight /> Retraits (
-          {
-            transactions.filter(
-              (t) => t.type === "retrait" && t.status === "en_attente"
-            ).length
-          }
-          )
+          <FiArrowUpRight /> Retraits ({transactions.filter((t) => t.type === "retrait" && t.status === "en_attente").length})
         </button>
 
         <button
@@ -347,53 +360,26 @@ const AdminPanel = () => {
             </thead>
             <tbody className="divide-y divide-slate-800">
               {users.map((u) => (
-                <tr
-                  key={u._id}
-                  className="transition-colors hover:bg-slate-800/50"
-                >
+                <tr key={u._id} className="transition-colors hover:bg-slate-800/50">
                   <td className="p-6 font-bold">
                     {u.name} <br />
-                    <span className="text-[10px] text-slate-500">
-                      {u.email}
-                    </span>
+                    <span className="text-[10px] text-slate-500">{u.email}</span>
                   </td>
                   <td className="p-6 text-xs text-blue-500 underline">
                     {u.kycDocUrl ? (
-                      <a href={u.kycDocUrl} target="_blank" rel="noreferrer">
-                        Voir la pièce
-                      </a>
-                    ) : (
-                      "Aucun"
-                    )}
+                      <a href={u.kycDocUrl} target="_blank" rel="noreferrer">Voir la pièce</a>
+                    ) : ("Aucun")}
                   </td>
                   <td className="p-6">
-                    <span
-                      className={`text-[9px] font-black uppercase px-3 py-1 rounded-full ${
-                        u.kycStatus === "valide"
-                          ? "bg-emerald-500/10 text-emerald-500"
-                          : "bg-orange-500/10 text-orange-500"
-                      }`}
-                    >
+                    <span className={`text-[9px] font-black uppercase px-3 py-1 rounded-full ${u.kycStatus === "valide" ? "bg-emerald-500/10 text-emerald-500" : "bg-orange-500/10 text-orange-500"}`}>
                       {u.kycStatus}
                     </span>
                   </td>
                   <td className="p-6 space-x-2 text-right">
                     {u.kycStatus === "en_attente" && (
                       <>
-                        <button
-                          onClick={() => handleValidateKYC(u._id, "valide")}
-                          className="p-3 bg-emerald-600 rounded-xl hover:bg-emerald-500"
-                        >
-                          <FiCheck />
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleValidateKYC(u._id, "non_verifie")
-                          }
-                          className="p-3 bg-red-600 rounded-xl hover:bg-red-500"
-                        >
-                          <FiX />
-                        </button>
+                        <button onClick={() => handleValidateKYC(u._id, "valide")} className="p-3 bg-emerald-600 rounded-xl hover:bg-emerald-500"><FiCheck /></button>
+                        <button onClick={() => handleValidateKYC(u._id, "non_verifie")} className="p-3 bg-red-600 rounded-xl hover:bg-red-500"><FiX /></button>
                       </>
                     )}
                   </td>
@@ -407,46 +393,18 @@ const AdminPanel = () => {
       {tab === "actions" && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {actions.map((a) => (
-            <div
-              key={a._id}
-              className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl"
-            >
+            <div key={a._id} className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl">
               <div className="flex items-start justify-between mb-4">
-                <h3 className="text-xl italic font-black uppercase">
-                  {a.name}
-                </h3>
-                <span
-                  className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
-                    a.status === "valide"
-                      ? "bg-emerald-500 text-black"
-                      : "bg-blue-500/20 text-blue-500"
-                  }`}
-                >
-                  {a.status}
-                </span>
+                <h3 className="text-xl italic font-black uppercase">{a.name}</h3>
+                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${a.status === "valide" ? "bg-emerald-500 text-black" : "bg-blue-500/20 text-blue-500"}`}>{a.status}</span>
               </div>
               <p className="mb-6 text-xs text-slate-500">{a.description}</p>
               <div className="grid grid-cols-2 gap-4 mb-6">
-                <div className="p-4 bg-slate-950 rounded-2xl">
-                  <p className="text-[8px] text-slate-500 uppercase font-black">
-                    Prix / Part
-                  </p>
-                  <p className="font-bold text-blue-400">{a.price} F</p>
-                </div>
-                <div className="p-4 bg-slate-950 rounded-2xl">
-                  <p className="text-[8px] text-slate-500 uppercase font-black">
-                    Quantité
-                  </p>
-                  <p className="font-bold">{a.totalQuantity} unités</p>
-                </div>
+                <div className="p-4 bg-slate-950 rounded-2xl"><p className="text-[8px] text-slate-500 uppercase font-black">Prix / Part</p><p className="font-bold text-blue-400">{a.price} F</p></div>
+                <div className="p-4 bg-slate-950 rounded-2xl"><p className="text-[8px] text-slate-500 uppercase font-black">Quantité</p><p className="font-bold">{a.totalQuantity} unités</p></div>
               </div>
               {a.status === "en_attente" && (
-                <button
-                  onClick={() => handleValidateAction(a._id)}
-                  className="w-full bg-blue-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-black transition-all"
-                >
-                  Approuver et Mettre en vente
-                </button>
+                <button onClick={() => handleValidateAction(a._id)} className="w-full bg-blue-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-black transition-all">Approuver et Mettre en vente</button>
               )}
             </div>
           ))}
@@ -456,80 +414,32 @@ const AdminPanel = () => {
       {tab === "bonds" && (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {bonds.length === 0 ? (
-            <p className="text-slate-500 italic p-10 bg-slate-900 rounded-[2rem] border border-slate-800 text-center col-span-2">
-              Aucune obligation trouvée.
-            </p>
+            <p className="text-slate-500 italic p-10 bg-slate-900 rounded-[2rem] border border-slate-800 text-center col-span-2">Aucune obligation trouvée.</p>
           ) : (
             bonds.map((b) => (
-              <div
-                key={b._id}
-                className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl relative overflow-hidden"
-              >
+              <div key={b._id} className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl relative overflow-hidden">
                 <div className="flex items-start justify-between mb-4">
                   <div>
-                    <h3 className="text-xl italic font-black uppercase text-amber-500">
-                      {b.titre}
-                    </h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">
-                      Émis par: {b.actionnaireId?.name || "Actionnaire"}
-                    </p>
+                    <h3 className="text-xl italic font-black uppercase text-amber-500">{b.titre}</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Émis par: {b.actionnaireId?.name || "Actionnaire"}</p>
                   </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
-                      b.status === "valide"
-                        ? "bg-emerald-500 text-black"
-                        : "bg-amber-500/20 text-amber-500"
-                    }`}
-                  >
-                    {b.status}
-                  </span>
+                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${b.status === "valide" ? "bg-emerald-500 text-black" : "bg-amber-500/20 text-amber-500"}`}>{b.status}</span>
                 </div>
                 <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="p-3 bg-slate-950 rounded-xl">
-                    <p className="text-[8px] text-slate-500 uppercase font-black">
-                      Rendement
-                    </p>
-                    <p className="font-bold text-emerald-400">
-                      {b.tauxInteret}%
-                    </p>
-                  </div>
-                  <div className="p-3 bg-slate-950 rounded-xl">
-                    <p className="text-[8px] text-slate-500 uppercase font-black">
-                      Durée
-                    </p>
-                    <p className="font-bold">{b.dureeMois} mois</p>
-                  </div>
-                  <div className="p-3 bg-slate-950 rounded-xl">
-                    <p className="text-[8px] text-slate-500 uppercase font-black">
-                      Fréquence
-                    </p>
-                    <p className="font-bold text-xs">{b.frequence}</p>
-                  </div>
+                  <div className="p-3 bg-slate-950 rounded-xl"><p className="text-[8px] text-slate-500 uppercase font-black">Rendement</p><p className="font-bold text-emerald-400">{b.tauxInteret}%</p></div>
+                  <div className="p-3 bg-slate-950 rounded-xl"><p className="text-[8px] text-slate-500 uppercase font-black">Durée</p><p className="font-bold">{b.dureeMois} mois</p></div>
+                  <div className="p-3 bg-slate-950 rounded-xl"><p className="text-[8px] text-slate-500 uppercase font-black">Fréquence</p><p className="font-bold text-xs">{b.frequence}</p></div>
                 </div>
                 <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-2xl mb-6">
                   <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1">
-                      <FiShield className="text-blue-500" /> Garantie bloquée
-                    </span>
-                    <span className="font-black text-blue-400">
-                      {b.garantie?.toLocaleString()} F
-                    </span>
+                    <span className="text-[10px] font-black uppercase text-slate-500 flex items-center gap-1"><FiShield className="text-blue-500" /> Garantie bloquée</span>
+                    <span className="font-black text-blue-400">{b.garantie?.toLocaleString()} F</span>
                   </div>
                 </div>
                 {b.status === "en_attente" && (
                   <div className="flex gap-3">
-                    <button
-                      onClick={() => handleValidateBond(b._id)}
-                      className="flex-1 bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 transition-all"
-                    >
-                      Valider l'obligation
-                    </button>
-                    <button
-                      onClick={() => handleRejectBond(b._id)}
-                      className="px-6 bg-red-600/20 text-red-500 rounded-2xl hover:bg-red-600 hover:text-white transition-all"
-                    >
-                      <FiTrash2 size={18} />
-                    </button>
+                    <button onClick={() => handleValidateBond(b._id)} className="flex-1 bg-amber-600 py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest hover:bg-white hover:text-amber-600 transition-all">Valider l'obligation</button>
+                    <button onClick={() => handleRejectBond(b._id)} className="px-6 bg-red-600/20 text-red-500 rounded-2xl hover:bg-red-600 hover:text-white transition-all"><FiTrash2 size={18} /></button>
                   </div>
                 )}
               </div>
@@ -550,47 +460,24 @@ const AdminPanel = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {transactions
-                .filter((t) => t.type === "depot")
-                .map((t) => (
-                  <tr
-                    key={t._id}
-                    className="transition-colors hover:bg-slate-800/50"
-                  >
-                    <td className="p-6 font-bold">
-                      {t.userId?.name || "Inconnu"} <br />
-                      <span className="text-[10px] text-slate-500">
-                        {t.userId?.email}
-                      </span>
-                    </td>
-                    <td className="p-6 font-black text-emerald-500">
-                      {t.amount.toLocaleString()} F
-                    </td>
-                    <td className="p-6 text-[9px] font-black uppercase italic flex items-center gap-2">
-                      {t.status === "en_attente" ? (
-                        <>
-                          <FiClock className="text-orange-500" />
-                          <span className="text-orange-500">{t.status}</span>
-                        </>
-                      ) : (
-                        <>
-                          <FiCheck className="text-emerald-500" />
-                          <span className="text-emerald-500">{t.status}</span>
-                        </>
-                      )}
-                    </td>
-                    <td className="p-6 text-right">
-                      {t.status === "en_attente" && (
-                        <button
-                          onClick={() => handleValidateDeposit(t._id)}
-                          className="p-3 shadow-lg bg-emerald-600 rounded-xl hover:bg-emerald-500"
-                        >
-                          <FiCheck />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+              {transactions.filter((t) => t.type === "depot").map((t) => (
+                <tr key={t._id} className="transition-colors hover:bg-slate-800/50">
+                  <td className="p-6 font-bold">{t.userId?.name || "Inconnu"} <br /><span className="text-[10px] text-slate-500">{t.userId?.email}</span></td>
+                  <td className="p-6 font-black text-emerald-500">{t.amount.toLocaleString()} F</td>
+                  <td className="p-6 text-[9px] font-black uppercase italic flex items-center gap-2">
+                    {t.status === "en_attente" ? (
+                      <><FiClock className="text-orange-500" /><span className="text-orange-500">{t.status}</span></>
+                    ) : (
+                      <><FiCheck className="text-emerald-500" /><span className="text-emerald-500">{t.status}</span></>
+                    )}
+                  </td>
+                  <td className="p-6 text-right">
+                    {t.status === "en_attente" && (
+                      <button onClick={() => handleValidateDeposit(t._id)} className="p-3 shadow-lg bg-emerald-600 rounded-xl hover:bg-emerald-500"><FiCheck /></button>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -609,63 +496,20 @@ const AdminPanel = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800">
-              {transactions
-                .filter((t) => t.type === "retrait")
-                .map((t) => (
-                  <tr
-                    key={t._id}
-                    className="transition-colors hover:bg-slate-800/50"
-                  >
-                    <td className="p-6 font-bold">
-                      {t.userId?.name || "Inconnu"} <br />
-                      <span className="text-[10px] text-slate-500">
-                        {t.userId?.email}
-                      </span>
-                    </td>
-                    <td className="p-6 font-black text-red-500">
-                      -{t.amount.toLocaleString()} F
-                    </td>
-                    <td className="p-6">
-                      <div className="flex items-center gap-2 px-3 py-2 border bg-black/40 border-slate-800 rounded-xl w-fit">
-                        <FiPhone className="text-blue-500" size={14} />
-                        <span className="text-xs font-black tracking-wider text-white">
-                          {t.recipientPhone || "N/A"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-6">
-                      <span
-                        className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
-                          t.status === "en_attente"
-                            ? "bg-orange-500/10 text-orange-500"
-                            : t.status === "valide"
-                            ? "bg-emerald-500/10 text-emerald-500"
-                            : "bg-red-500/10 text-red-500"
-                        }`}
-                      >
-                        {t.status}
-                      </span>
-                    </td>
-                    <td className="p-6 space-x-2 text-right">
-                      {t.status === "en_attente" && (
-                        <>
-                          <button
-                            onClick={() => handleValidateWithdrawal(t._id)}
-                            className="p-3 shadow-lg bg-emerald-600 hover:bg-white hover:text-emerald-600 rounded-xl"
-                          >
-                            <FiCheck />
-                          </button>
-                          <button
-                            onClick={() => handleRejectWithdrawal(t._id)}
-                            className="p-3 bg-red-600 shadow-lg hover:bg-white hover:text-red-600 rounded-xl"
-                          >
-                            <FiTrash2 />
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+              {transactions.filter((t) => t.type === "retrait").map((t) => (
+                <tr key={t._id} className="transition-colors hover:bg-slate-800/50">
+                  <td className="p-6 font-bold">{t.userId?.name || "Inconnu"} <br /><span className="text-[10px] text-slate-500">{t.userId?.email}</span></td>
+                  <td className="p-6 font-black text-red-500">-{t.amount.toLocaleString()} F</td>
+                  <td className="p-6"><div className="flex items-center gap-2 px-3 py-2 border bg-black/40 border-slate-800 rounded-xl w-fit"><FiPhone className="text-blue-500" size={14} /><span className="text-xs font-black tracking-wider text-white">{t.recipientPhone || "N/A"}</span></div></td>
+                  <td className="p-6"><span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${t.status === "en_attente" ? "bg-orange-500/10 text-orange-500" : t.status === "valide" ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>{t.status}</span></td>
+                  <td className="p-6 space-x-2 text-right">
+                    {t.status === "en_attente" && (
+                      <><button onClick={() => handleValidateWithdrawal(t._id)} className="p-3 shadow-lg bg-emerald-600 hover:bg-white hover:text-emerald-600 rounded-xl"><FiCheck /></button>
+                      <button onClick={() => handleRejectWithdrawal(t._id)} className="p-3 bg-red-600 shadow-lg hover:bg-white hover:text-red-600 rounded-xl"><FiTrash2 /></button></>
+                    )}
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -674,66 +518,23 @@ const AdminPanel = () => {
       {tab === "dividends" && (
         <div className="bg-slate-900 p-10 rounded-[2.5rem] border border-slate-800 shadow-2xl max-w-3xl mx-auto">
           <div className="flex items-center gap-4 mb-8">
-            <div className="p-4 text-purple-500 bg-purple-500/10 rounded-2xl">
-              <FiPieChart size={32} />
-            </div>
-            <div>
-              <h2 className="text-2xl italic font-black text-white uppercase">
-                Distribuer des Dividendes
-              </h2>
-              <p className="text-xs font-bold tracking-wider uppercase text-slate-500">
-                Rémunérer les détenteurs d'actifs
-              </p>
-            </div>
+            <div className="p-4 text-purple-500 bg-purple-500/10 rounded-2xl"><FiPieChart size={32} /></div>
+            <div><h2 className="text-2xl italic font-black text-white uppercase">Distribuer des Dividendes</h2><p className="text-xs font-bold tracking-wider uppercase text-slate-500">Rémunérer les détenteurs d'actifs</p></div>
           </div>
           <form onSubmit={handleDistributeDividends} className="space-y-6">
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-2">
-                Sélectionner l'entreprise
-              </label>
-              <select
-                value={selectedAction}
-                onChange={(e) => setSelectedAction(e.target.value)}
-                className="w-full p-5 text-sm font-bold text-white transition-all border outline-none bg-slate-950 border-slate-800 rounded-2xl focus:border-purple-500"
-              >
+            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-2">Sélectionner l'entreprise</label>
+              <select value={selectedAction} onChange={(e) => setSelectedAction(e.target.value)} className="w-full p-5 text-sm font-bold text-white transition-all border outline-none bg-slate-950 border-slate-800 rounded-2xl focus:border-purple-500">
                 <option value="">Choisir un actif valide...</option>
-                {actions
-                  .filter((a) => a.status === "valide")
-                  .map((action) => (
-                    <option key={action._id} value={action._id}>
-                      {action.name} ({action.price} F / part)
-                    </option>
-                  ))}
+                {actions.filter((a) => a.status === "valide").map((action) => (<option key={action._id} value={action._id}>{action.name} ({action.price} F / part)</option>))}
               </select>
             </div>
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-2">
-                Montant à verser par part possédée
-              </label>
-              <div className="relative">
-                <FiDollarSign className="absolute text-purple-500 -translate-y-1/2 left-5 top-1/2" />
-                <input
-                  type="number"
-                  placeholder="Exemple: 50"
-                  value={amountPerShare}
-                  onChange={(e) => setAmountPerShare(e.target.value)}
-                  className="w-full p-5 pl-12 text-sm font-bold text-white transition-all border outline-none bg-slate-950 border-slate-800 rounded-2xl focus:border-purple-500"
-                />
+            <div><label className="block text-[10px] font-black uppercase text-slate-500 mb-2 ml-2">Montant à verser par part possédée</label>
+              <div className="relative"><FiDollarSign className="absolute text-purple-500 -translate-y-1/2 left-5 top-1/2" />
+                <input type="number" placeholder="Exemple: 50" value={amountPerShare} onChange={(e) => setAmountPerShare(e.target.value)} className="w-full p-5 pl-12 text-sm font-bold text-white transition-all border outline-none bg-slate-950 border-slate-800 rounded-2xl focus:border-purple-500" />
               </div>
             </div>
-            <button
-              type="submit"
-              disabled={isProcessing}
-              className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all shadow-xl ${
-                isProcessing
-                  ? "bg-slate-800 text-slate-600"
-                  : "bg-purple-600 hover:bg-white hover:text-purple-600"
-              }`}
-            >
-              <FiSend />{" "}
-              {isProcessing
-                ? "Traitement en cours..."
-                : "Lancer la distribution"}
+            <button type="submit" disabled={isProcessing} className={`w-full flex items-center justify-center gap-3 py-5 rounded-2xl font-black uppercase text-xs tracking-[0.2em] transition-all shadow-xl ${isProcessing ? "bg-slate-800 text-slate-600" : "bg-purple-600 hover:bg-white hover:text-purple-600"}`}>
+              <FiSend /> {isProcessing ? "Traitement en cours..." : "Lancer la distribution"}
             </button>
           </form>
         </div>
